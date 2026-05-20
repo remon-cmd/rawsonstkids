@@ -15,135 +15,84 @@
   *{box-sizing:border-box}
   input,select,textarea,button{font-family:inherit}
 
-  /* Prevent iOS auto-zoom on focus: inputs need 16px minimum.
-     Apply on all sizes, harmless on desktop. */
+  /* Prevent iOS auto-zoom on focus: inputs need 16px minimum */
   input,select,textarea{font-size:16px}
+
+  /* ── Layout class helpers (used by React components) ───────── */
+  .app-root{padding:16px;max-width:1200px;margin:0 auto}
+  .app-header{background:white;border-radius:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.07);padding:1rem 1.25rem;margin-bottom:16px;border-top:4px solid #e8192c;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  .app-header-brand{display:flex;align-items:center;gap:16px}
+  .app-header-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .app-header-divider{width:1px;height:48px;background:#e2e8f0}
+  .app-header-logo{font-size:2rem;font-weight:900;line-height:1}
+  .app-2col{display:grid;grid-template-columns:1fr 2fr;gap:16px}
+  .app-dash{display:grid;grid-template-columns:1fr 1fr;gap:16px;height:calc(100vh - 160px)}
+  .app-stats-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .app-stats-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .app-day-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .app-day-label{font-size:0.75rem;font-weight:600;width:6rem;flex-shrink:0}
+  .app-shop-input-row{display:flex;gap:8px;align-items:center}
+  .app-shop-input-row .item{flex:1;min-width:0}
+  .app-shop-input-row .qty{width:70px}
 
   /* ── Mobile (≤ 768px) ─────────────────────────────────────── */
   @media (max-width: 768px){
-    /* Root app container padding */
-    #root > div[style*="max-width"]{padding:8px !important}
+    .app-root{padding:8px !important}
 
-    /* ── Header ──────────────────────────────────────────────── */
-    /* The main header bar has a 4px red top border + flex-wrap.
-       Tighten its padding and let inner blocks stack. */
-    #root > div > div[style*="border-top"]:first-of-type,
-    #root > div > div[style*="border-top"][style*="margin-bottom"]{
-      padding:0.75rem !important;
-      gap:8px !important;
-    }
-    /* The header's two top-level children: logo block + nav buttons.
-       Make each take the full width. */
-    #root > div > div[style*="border-top"][style*="margin-bottom"] > div{
-      width:100% !important;
-      justify-content:flex-start !important;
-    }
-    /* Shrink the giant K-i-d-s wordmark on mobile */
-    #root > div > div[style*="border-top"][style*="margin-bottom"] div[style*="2rem"]{
-      font-size:1.5rem !important;
-    }
-    /* Hide the vertical divider between logo and "iRSK" title */
-    #root > div > div[style*="border-top"][style*="margin-bottom"] div[style*="height: 48px"]{
-      display:none !important;
-    }
-    /* Header nav buttons — smaller padding & font, allow wrap */
-    #root > div > div[style*="border-top"][style*="margin-bottom"] button{
-      padding:0.4rem 0.7rem !important;
-      font-size:0.75rem !important;
-      white-space:nowrap;
-    }
+    /* Header */
+    .app-header{padding:0.75rem !important;gap:8px !important}
+    .app-header-brand{width:100%;gap:10px !important}
+    .app-header-nav{width:100%;gap:6px !important;justify-content:flex-start}
+    .app-header-divider{display:none}
+    .app-header-logo{font-size:1.5rem !important}
+    .app-header-nav button{padding:0.4rem 0.7rem !important;font-size:0.75rem !important;white-space:nowrap}
 
-    /* ── Main two-column layouts → stack ────────────────────── */
-    /* Timesheet/Summary layout (1fr 2fr) */
-    div[style*="grid-template-columns: 1fr 2fr"]{
-      grid-template-columns:1fr !important;
-      gap:12px !important;
-    }
-    /* Dashboard layout (1fr 1fr) */
-    div[style*="grid-template-columns: 1fr 1fr"]{
-      grid-template-columns:1fr !important;
-      gap:12px !important;
-      height:auto !important;
-    }
-    /* Give Dashboard panels a usable height when stacked */
-    div[style*="grid-template-columns: 1fr 1fr"] > div{
-      min-height:65vh;
-    }
+    /* Two-column layouts → stack */
+    .app-2col{grid-template-columns:1fr !important;gap:12px !important}
+    .app-dash{grid-template-columns:1fr !important;gap:12px !important;height:auto !important}
+    .app-dash > div{min-height:70vh}
 
-    /* ── Stat grids 4-col → 2-col ───────────────────────────── */
-    div[style*="grid-template-columns: repeat(4, 1fr)"]{
-      grid-template-columns:repeat(2,1fr) !important;
-      gap:8px !important;
-    }
-    /* Stat grids 3-col stays 3 but tighter */
-    div[style*="grid-template-columns: repeat(3, 1fr)"]{
-      gap:6px !important;
-    }
+    /* Stat grids */
+    .app-stats-4{grid-template-columns:repeat(2,1fr) !important;gap:8px !important}
+    .app-stats-3{gap:6px !important}
 
-    /* ── Timesheet day rows ─────────────────────────────────── */
-    /* The fixed-width day label (6rem) takes the full first row
-       so time/break inputs can wrap naturally beneath. */
-    div[style*="border-radius: 0.75rem"] > div[style*="flex-wrap: wrap"] > span[style*="width: 6rem"]{
-      width:100% !important;
-      margin-bottom:2px;
-    }
-    /* Time inputs — comfortable size, prevent overflow */
-    input[type="time"]{
-      min-width:90px;
-      font-size:14px !important;
-    }
-    input[type="number"]{
-      font-size:14px !important;
-    }
+    /* Timesheet day rows — day label takes its own line */
+    .app-day-label{width:100% !important;margin-bottom:2px}
 
-    /* ── Modals ─────────────────────────────────────────────── */
-    /* Full-bleed modal width on mobile */
+    /* Shopping list inputs — let item field be wider */
+    .app-shop-input-row .qty{width:60px}
+
+    /* Form inputs — comfortable size, prevent overflow */
+    input[type="time"]{min-width:90px;font-size:14px !important}
+    input[type="number"]{font-size:14px !important}
+
+    /* Modals — full bleed */
     div[style*="position: fixed"][style*="inset"] > div[style*="max-width"]{
       max-width:calc(100vw - 16px) !important;
     }
-    /* Modal padding tighten */
-    div[style*="position: fixed"][style*="inset"] > div[style*="border-radius: 1rem"] > div[style*="padding: 1.25rem"]{
-      padding:0.875rem !important;
-    }
 
-    /* ── Print Preview overlay ──────────────────────────────── */
-    /* Header bar inside the print preview */
-    div[style*="position: fixed"][style*="z-index: 50"] > div[style*="flex-wrap: wrap"]:first-child{
-      padding:0.5rem 0.75rem !important;
-      gap:8px !important;
+    /* Print preview overlay — stack header controls */
+    div[style*="position: fixed"][style*="z-index: 50"] > div[style*="flex-wrap"]:first-child{
+      padding:0.5rem 0.75rem !important;gap:8px !important;
     }
-    /* The right-side button group breaks to new line */
     div[style*="position: fixed"][style*="z-index: 50"] > div:first-child > div[style*="margin-left: auto"]{
-      margin-left:0 !important;
-      width:100%;
-      justify-content:space-between !important;
-      flex-wrap:wrap;
+      margin-left:0 !important;width:100%;justify-content:space-between !important;flex-wrap:wrap;
     }
-    /* Reduce padding around the print preview document */
     div[style*="position: fixed"][style*="z-index: 50"] > div[style*="overflow-y: auto"]{
       padding:8px !important;
     }
-    div[style*="position: fixed"][style*="z-index: 50"] #print-area{
-      padding:14px !important;
-    }
+    div[style*="position: fixed"][style*="z-index: 50"] #print-area{padding:14px !important}
 
-    /* ── Message bubbles wider on narrow screens ────────────── */
+    /* Message bubbles — wider on narrow screens */
     div[style*="max-width: 80%"]{max-width:90% !important}
 
-    /* ── Tap targets ────────────────────────────────────────── */
+    /* Tap targets */
     button{min-height:36px}
-
-    /* PIN pad keys size up slightly */
-    div[style*="grid-template-columns: repeat(3, 1fr)"] button[style*="aspect-ratio: 1.4"]{
-      aspect-ratio:1.5 !important;
-    }
   }
 
   /* ── Small tablet (769–960px) ─────────────────────────────── */
   @media (min-width: 769px) and (max-width: 960px){
-    div[style*="grid-template-columns: 1fr 2fr"]{
-      grid-template-columns:1fr 1.5fr !important;
-    }
+    .app-2col{grid-template-columns:1fr 1.5fr !important}
   }
 
   @media print{body *{visibility:hidden}#print-area,#print-area *{visibility:visible}#print-area{position:fixed;left:0;top:0;width:100%;padding:20px;background:white}}
@@ -710,7 +659,7 @@ function ShoppingList({store,storeLabel,storeIcon,accentColor,session}){
 
 function ShoppingLists({session}){
   return(
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,height:"calc(100vh - 160px)"}}>
+    <div className="app-dash">
       <ShoppingList store="woolworths" storeLabel="Woolworths" storeIcon="🛒" accentColor="#22c55e" session={session}/>
       <ShoppingList store="tassaway" storeLabel="TASSAWAY" storeIcon="📦" accentColor="#f59e0b" session={session}/>
     </div>
@@ -720,7 +669,7 @@ function ShoppingLists({session}){
 // ── Dashboard ─────────────────────────────────────────────────
 function Dashboard({session}){
   return(
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,height:"calc(100vh - 160px)"}}>
+    <div className="app-dash">
       <NoticeBoard session={session}/>
       <Messages session={session}/>
     </div>
@@ -850,20 +799,20 @@ function App(){
   const btn=(label,onClick,active)=><button onClick={onClick} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:active?BRAND:"#f1f5f9",color:active?"white":"#475569"}}>{label}</button>;
 
   return(
-    <div style={{padding:16,maxWidth:1200,margin:"0 auto"}}>
+    <div className="app-root">
       {showPw&&<PwManager employees={employees} role={session.role} onClose={()=>setShowPw(false)}/>}
       {showChangePw&&<ChangeMyPw session={session} onClose={()=>setShowChangePw(false)}/>}
       {showPrint&&<PrintPreview employees={visEmps} fortnightStart={fortnightStart} getTimesheet={getTS} getExpenses={emp=>expCache[emp]||[]} getMedCerts={emp=>mcCache[emp]||[]} onClose={()=>setShowPrint(false)}/>}
       {showImport&&<ImportModal onImport={doImport} onClose={()=>setShowImport(false)}/>}
 
       {/* Header */}
-      <div style={{background:"white",borderRadius:"1rem",boxShadow:"0 2px 8px rgba(0,0,0,0.07)",padding:"1rem 1.25rem",marginBottom:16,borderTop:"4px solid "+BRAND,display:"flex",flexWrap:"wrap",gap:12,alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <div style={{lineHeight:1.2}}><div style={{fontSize:"0.65rem",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#3b82f6"}}>Rawson St</div><div style={{fontSize:"2rem",fontWeight:900,lineHeight:1}}><span style={{color:"#e8192c"}}>K</span><span style={{color:"#f59e0b"}}>i</span><span style={{color:"#3b82f6"}}>d</span><span style={{color:"#22c55e"}}>s</span></div><div style={{fontSize:"0.6rem",fontWeight:600,letterSpacing:"0.05em",color:"#3b82f6"}}>Early Learning Centre</div></div>
-          <div style={{width:1,height:48,background:"#e2e8f0"}}></div>
+      <div className="app-header">
+        <div className="app-header-brand">
+          <div style={{lineHeight:1.2}}><div style={{fontSize:"0.65rem",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:"#3b82f6"}}>Rawson St</div><div className="app-header-logo"><span style={{color:"#e8192c"}}>K</span><span style={{color:"#f59e0b"}}>i</span><span style={{color:"#3b82f6"}}>d</span><span style={{color:"#22c55e"}}>s</span></div><div style={{fontSize:"0.6rem",fontWeight:600,letterSpacing:"0.05em",color:"#3b82f6"}}>Early Learning Centre</div></div>
+          <div className="app-header-divider"></div>
           <div><div style={{fontWeight:700,fontSize:"1.1rem",color:"#1e293b"}}>iRSK</div><div style={{fontSize:"0.75rem",color:"#94a3b8"}}>Rawson St Kids Educators Portal</div></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <div className="app-header-nav">
           <span style={{fontSize:"0.7rem",fontWeight:600,padding:"0.25rem 0.75rem",borderRadius:"9999px",background:roleColor,color:"white"}}>{session.role==="educator"?session.empName+" (Educator)":{admin:"Admin",director:"Director"}[session.role]}</span>
           {btn("🏠 Dashboard",()=>setView("dashboard"),view==="dashboard")}
           {btn("🛒 Shopping",()=>setView("shopping"),view==="shopping")}
@@ -885,7 +834,7 @@ function App(){
 
       {/* Timesheet & Summary — with left panel */}
       {view!=="dashboard"&&view!=="shopping"&&(
-        <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:16}}>
+        <div className="app-2col">
           {/* Left Panel */}
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             <div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
@@ -921,8 +870,8 @@ function App(){
                   const imported=day.decimalHours&&parseFloat(day.decimalHours)>0&&day.status==="Worked";
                   const[bg,bc]=sCol(we?"Weekend":day.status);const sb2=sBadge(we?"Weekend":day.status);
                   return(<div key={idx} style={{border:"1px solid "+bc,borderRadius:"0.75rem",padding:10,marginBottom:6,background:bg,opacity:we?0.65:1}}>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
-                      <span style={{fontSize:"0.75rem",fontWeight:600,color:we?"#94a3b8":"#475569",width:"6rem",flexShrink:0}}>{fmtDay(idx,fortnightStart)}</span>
+                    <div className="app-day-row">
+                      <span className="app-day-label" style={{color:we?"#94a3b8":"#475569"}}>{fmtDay(idx,fortnightStart)}</span>
                       {we?<span style={{...sb2,fontSize:"0.75rem",fontWeight:500,padding:"2px 8px",borderRadius:6}}>Weekend</span>
                         :editable?<select value={day.status} onChange={e=>updDay(selectedEmp,idx,"status",e.target.value)} style={{...sb2,fontSize:"0.75rem",fontWeight:500,padding:"2px 8px",borderRadius:6,border:"none",cursor:"pointer"}}>{DAY_STATUS.filter(s=>s!=="Weekend").map(s=><option key={s}>{s}</option>)}</select>
                         :<span style={{...sb2,fontSize:"0.75rem",fontWeight:500,padding:"2px 8px",borderRadius:6}}>{day.status}</span>}
@@ -944,7 +893,7 @@ function App(){
                     </div>
                   </div>);
                 })}
-                {(()=>{const{td,sk,al,ph}=summ(selectedEmp);return(<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginTop:16}}>{[{v:td.toFixed(2),l:"Total hrs",bg:"#fee2e2",c:BRAND},{v:ph,l:"Public holidays",bg:"#fef9c3",c:"#b45309"},{v:sk,l:"Sick days",bg:"#fff1f2",c:"#e11d48"},{v:al,l:"Annual leave",bg:"#f0fdf4",c:"#16a34a"}].map(({v,l,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.25rem",fontWeight:700,color:c}}>{v}</div><div style={{fontSize:"0.7rem",color:c,marginTop:2}}>{l}</div></div>)}</div>);})()}
+                {(()=>{const{td,sk,al,ph}=summ(selectedEmp);return(<div className="app-stats-4" style={{marginTop:16}}>{[{v:td.toFixed(2),l:"Total hrs",bg:"#fee2e2",c:BRAND},{v:ph,l:"Public holidays",bg:"#fef9c3",c:"#b45309"},{v:sk,l:"Sick days",bg:"#fff1f2",c:"#e11d48"},{v:al,l:"Annual leave",bg:"#f0fdf4",c:"#16a34a"}].map(({v,l,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.25rem",fontWeight:700,color:c}}>{v}</div><div style={{fontSize:"0.7rem",color:c,marginTop:2}}>{l}</div></div>)}</div>);})()}
                 <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
                   {[{key:"expenses",label:"💰 Expenses"},{key:"medical",label:"🏥 Medical Certificates"}].map(({key,label})=>(
                     <div key={key} style={{border:"1px solid #e2e8f0",borderRadius:"0.75rem",overflow:"hidden"}}>
@@ -964,8 +913,8 @@ function App(){
                   return(<div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)",borderLeft:"4px solid "+BRAND}}>
                     <div style={{fontWeight:700,fontSize:"1rem",color:"#1e293b",marginBottom:4}}>📊 Fortnight Summary — All Staff</div>
                     {fortnightStart&&<div style={{fontSize:"0.75rem",color:"#64748b",marginBottom:12}}>{fmtShort(fortnightStart)} – {fmtShort(fortnightStart,13)} · {employees.length} employee{employees.length!==1?"s":""}</div>}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:8}}>{[{v:gt.toFixed(2),l:"Total Hours",s:"all staff",bg:"#fee2e2",c:BRAND},{v:(gt/Math.max(employees.length,1)).toFixed(2),l:"Avg Hours",s:"per employee",bg:"#fef3c7",c:"#d97706"},{v:tw,l:"Days Worked",s:"across all",bg:"#eff6ff",c:"#3b82f6"}].map(({v,l,s,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.4rem",fontWeight:800,color:c}}>{v}</div><div style={{fontSize:"0.75rem",fontWeight:600,color:c}}>{l}</div><div style={{fontSize:"0.65rem",color:c,opacity:0.7}}>{s}</div></div>)}</div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>{[{v:tp,l:"Public Holidays",bg:"#fef9c3",c:"#b45309"},{v:ta,l:"Annual Leave",bg:"#f0fdf4",c:"#16a34a"},{v:ts,l:"Sick Leave",bg:"#fff1f2",c:"#e11d48"}].map(({v,l,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.4rem",fontWeight:800,color:c}}>{v}</div><div style={{fontSize:"0.75rem",fontWeight:600,color:c}}>{l}</div></div>)}</div>
+                    <div className="app-stats-3" style={{marginBottom:8}}>{[{v:gt.toFixed(2),l:"Total Hours",s:"all staff",bg:"#fee2e2",c:BRAND},{v:(gt/Math.max(employees.length,1)).toFixed(2),l:"Avg Hours",s:"per employee",bg:"#fef3c7",c:"#d97706"},{v:tw,l:"Days Worked",s:"across all",bg:"#eff6ff",c:"#3b82f6"}].map(({v,l,s,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.4rem",fontWeight:800,color:c}}>{v}</div><div style={{fontSize:"0.75rem",fontWeight:600,color:c}}>{l}</div><div style={{fontSize:"0.65rem",color:c,opacity:0.7}}>{s}</div></div>)}</div>
+                    <div className="app-stats-3">{[{v:tp,l:"Public Holidays",bg:"#fef9c3",c:"#b45309"},{v:ta,l:"Annual Leave",bg:"#f0fdf4",c:"#16a34a"},{v:ts,l:"Sick Leave",bg:"#fff1f2",c:"#e11d48"}].map(({v,l,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.4rem",fontWeight:800,color:c}}>{v}</div><div style={{fontSize:"0.75rem",fontWeight:600,color:c}}>{l}</div></div>)}</div>
                   </div>);})()}
                   {employees.map(emp=>{const{td,sk,al,ph}=summ(emp.name);const sheet=getTS(emp.name);
                     const w1=sheet.slice(0,5).reduce((s,d)=>{if(d.start&&d.end){const m=calcH(d.start,d.end,d.breakMins);if(m!=null)return s+m/60;}if(d.decimalHours&&d.status==="Worked")return s+parseFloat(d.decimalHours);return s;},0);
@@ -975,7 +924,7 @@ function App(){
                         <div style={{fontWeight:600,fontSize:"1rem",color:"#1e293b"}}>{emp.name}</div>
                         <div style={{display:"flex",gap:6,fontSize:"0.7rem"}}><span style={{background:"#f1f5f9",color:"#64748b",padding:"2px 8px",borderRadius:999}}>Wk1: {w1.toFixed(2)}h</span><span style={{background:"#f1f5f9",color:"#64748b",padding:"2px 8px",borderRadius:999}}>Wk2: {w2.toFixed(2)}h</span></div>
                       </div>
-                      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:12}}>{[{v:td.toFixed(2),l:"Total hrs",bg:"#fee2e2",c:BRAND},{v:ph,l:"Public holidays",bg:"#fef9c3",c:"#b45309"},{v:sk,l:"Sick days",bg:"#fff1f2",c:"#e11d48"},{v:al,l:"Annual leave",bg:"#f0fdf4",c:"#16a34a"}].map(({v,l,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.6rem",padding:"0.5rem",textAlign:"center"}}><div style={{fontSize:"1.1rem",fontWeight:700,color:c}}>{v}</div><div style={{fontSize:"0.65rem",color:c,marginTop:1}}>{l}</div></div>)}</div>
+                      <div className="app-stats-4" style={{marginBottom:12,gap:8}}>{[{v:td.toFixed(2),l:"Total hrs",bg:"#fee2e2",c:BRAND},{v:ph,l:"Public holidays",bg:"#fef9c3",c:"#b45309"},{v:sk,l:"Sick days",bg:"#fff1f2",c:"#e11d48"},{v:al,l:"Annual leave",bg:"#f0fdf4",c:"#16a34a"}].map(({v,l,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.6rem",padding:"0.5rem",textAlign:"center"}}><div style={{fontSize:"1.1rem",fontWeight:700,color:c}}>{v}</div><div style={{fontSize:"0.65rem",color:c,marginTop:1}}>{l}</div></div>)}</div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{sheet.map((d,i)=>{let val=null;if(d.status==="Worked"){if(d.start&&d.end){const m=calcH(d.start,d.end,d.breakMins);if(m!=null)val=toDec(m);}else if(d.decimalHours&&parseFloat(d.decimalHours)>0)val=parseFloat(d.decimalHours).toFixed(2);}const bg=d.status==="Sick Leave"?"#fee2e2":d.status==="Annual Leave"?"#dcfce7":d.status==="Public Holiday"?"#fef9c3":d.status==="Day Off"||d.status==="Weekend"?"#e2e8f0":val?BRAND:"#f1f5f9";const color=d.status==="Sick Leave"?"#e11d48":d.status==="Annual Leave"?"#16a34a":d.status==="Public Holiday"?"#b45309":d.status==="Day Off"||d.status==="Weekend"?"#94a3b8":val?"white":"#94a3b8";const lbl=d.status==="Sick Leave"?"SL":d.status==="Annual Leave"?"AL":d.status==="Public Holiday"?"PH":d.status==="Day Off"?"—":d.status==="Weekend"?"WE":val||"?";return<div key={i} title={fmtDay(i,fortnightStart)} style={{borderRadius:4,padding:"3px 7px",fontSize:"0.7rem",textAlign:"center",minWidth:36,background:bg,color}}>{lbl}</div>;})}</div>
                     </div>);
                   })}
