@@ -638,6 +638,7 @@ function ShoppingList({store,storeLabel,storeIcon,accentColor,session}){
   const[qty,setQty]=useState("");
   const[adding,setAdding]=useState(false);
   const senderName=session.role==="educator"?session.empName:session.role==="admin"?"Admin":"Director";
+  const canRemove=session.role==="admin"||session.role==="director";
   const load=async()=>{
     const{data}=await sb.from("shopping_items").select("*").eq("store",store).order("created_at",{ascending:true});
     setItems(data||[]);
@@ -655,6 +656,7 @@ function ShoppingList({store,storeLabel,storeIcon,accentColor,session}){
     setName("");setQty("");setAdding(false);await load();
   };
   const check=async id=>{
+    if(!canRemove)return;
     // Optimistic remove so it feels instant; auto-delete on check
     setItems(it=>it.filter(x=>x.id!==id));
     await sb.from("shopping_items").delete().eq("id",id);
@@ -682,15 +684,21 @@ function ShoppingList({store,storeLabel,storeIcon,accentColor,session}){
           ?<div style={{textAlign:"center",color:"#94a3b8",padding:"2.5rem 0"}}><div style={{fontSize:"2.5rem",marginBottom:8}}>{storeIcon}</div><p style={{fontSize:"0.875rem",margin:0}}>List is empty</p><p style={{fontSize:"0.75rem",margin:"4px 0 0"}}>Add items above</p></div>
           :items.map(it=>(
             <div key={it.id} style={{display:"flex",alignItems:"center",gap:10,background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:"0.75rem",padding:"0.625rem 0.875rem"}}>
-              <button onClick={()=>check(it.id)} aria-label="Check off" style={{flexShrink:0,width:24,height:24,minHeight:24,borderRadius:6,border:"2px solid #cbd5e1",background:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"all 0.15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=accentColor;e.currentTarget.style.background=accentColor+"15";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#cbd5e1";e.currentTarget.style.background="white";}}>
-                <span style={{fontSize:"0.85rem",color:accentColor,fontWeight:700,opacity:0}}>✓</span>
-              </button>
+              {canRemove
+                ?<button onClick={()=>check(it.id)} aria-label="Check off" title="Check off (removes from list)" style={{flexShrink:0,width:24,height:24,minHeight:24,borderRadius:6,border:"2px solid #cbd5e1",background:"white",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0,transition:"all 0.15s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor=accentColor;e.currentTarget.style.background=accentColor+"15";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#cbd5e1";e.currentTarget.style.background="white";}}>
+                  <span style={{fontSize:"0.85rem",color:accentColor,fontWeight:700,opacity:0}}>✓</span>
+                </button>
+                :<div title="Only admin or director can remove items" style={{flexShrink:0,width:24,height:24,borderRadius:6,border:"2px solid #e2e8f0",background:"#f1f5f9",display:"flex",alignItems:"center",justifyContent:"center",cursor:"not-allowed"}}>
+                  <span style={{fontSize:"0.7rem",color:"#cbd5e1"}}>🔒</span>
+                </div>
+              }
               <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontSize:"0.9rem",fontWeight:500,color:"#1e293b"}}>{it.name}</span>
                   {it.qty&&<span style={{fontSize:"0.75rem",fontWeight:600,color:accentColor,background:accentColor+"15",padding:"1px 8px",borderRadius:999}}>{it.qty}</span>}
+                  {it.added_by&&<span style={{fontSize:"0.7rem",fontWeight:700,color:"#7c3aed",background:"#f3e8ff",border:"1px solid #ddd6fe",padding:"1px 8px",borderRadius:999}}>👤 {it.added_by}</span>}
                 </div>
-                <div style={{fontSize:"0.65rem",color:"#94a3b8",marginTop:2}}>Added by {it.added_by||"—"} · {fmtTime(it.created_at)}</div>
+                <div style={{fontSize:"0.65rem",color:"#94a3b8",marginTop:2}}>{fmtTime(it.created_at)}</div>
               </div>
             </div>
           ))
