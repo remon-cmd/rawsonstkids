@@ -106,6 +106,8 @@ const BRAND="#e8192c";
 const DAY_STATUS=["Worked","Sick Leave","Annual Leave","Day Off","Public Holiday","Weekend"];
 const SUPA_URL="https://wehdixyjikcpzrfzdqid.supabase.co";
 const SUPA_KEY="sb_publishable_MjdJzhaqvCa-RAinDWyUPg_42rXv0_u";
+const EDUCATOR_PIN_LEN=4;
+const DIRECTOR_PIN_LEN=6;
 const sb=supabase.createClient(SUPA_URL,SUPA_KEY,{
   auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},
   global:{headers:{"apikey":SUPA_KEY,"Authorization":"Bearer "+SUPA_KEY}}
@@ -231,10 +233,17 @@ function PinPad({value,onChange,maxLength=6}){
 }
 
 // ── Login ─────────────────────────────────────────────────────
+// PIN pad shows max length = DIRECTOR_PIN_LEN (6) so director can still type the full PIN.
+// At 4 digits → try educators first; if a match, log in.
+// At 6 digits → try director; if not a match, error and clear.
+// If 4 digits don't match any educator, we just wait silently until 5/6 digits, where
+// it's either still no-match (then 6 = director check) or wrong.
 function LoginScreen({onLogin}){
   const[mode,setMode]=useState("pin");
   const[pw,setPw]=useState("");const[pin,setPin]=useState("");
   const[err,setErr]=useState("");const[loading,setLoading]=useState(false);
+  const[checked4,setChecked4]=useState(false); // track that we've already tried educators at len=4
+
   const goPw=async()=>{
     setLoading(true);setErr("");
     try{
@@ -245,19 +254,52 @@ function LoginScreen({onLogin}){
     }catch(e){setErr("Connection error. Check your internet.");}
     finally{setLoading(false);}
   };
-  const goPin=async p=>{
+
+  // Try educator login when PIN reaches EDUCATOR_PIN_LEN
+  const tryEducator=async p=>{
+    setLoading(true);setErr("");
+    try{
+      const{data:emps}=await sb.from("employees").select("name,password");
+      for(const emp of(emps||[])){
+        if(emp.password&&p===emp.password.trim()){onLogin("educator",emp.name);return true;}
+      }
+      return false;
+    }catch(e){setErr("Connection error. Check your internet.");return false;}
+    finally{setLoading(false);}
+  };
+
+  // Try director when PIN reaches DIRECTOR_PIN_LEN
+  const tryDirector=async p=>{
     setLoading(true);setErr("");
     try{
       const{data:settings}=await sb.from("settings").select("key,value");
       const sp={};(settings||[]).forEach(s=>sp[s.key]=s.value);
-      if(p===(sp["pw_director"]||"123456")){onLogin("director",null);return;}
-      const{data:emps}=await sb.from("employees").select("name,password");
-      for(const emp of(emps||[])){if(emp.password&&p===emp.password.trim()){onLogin("educator",emp.name);return;}}
-      setErr("Incorrect PIN. Please try again.");setPin("");
-    }catch(e){setErr("Connection error. Check your internet.");}
+      if(p===(sp["pw_director"]||"123456")){onLogin("director",null);return true;}
+      return false;
+    }catch(e){setErr("Connection error. Check your internet.");return false;}
     finally{setLoading(false);}
   };
-  useEffect(()=>{if(mode==="pin"&&pin.length===6){goPin(pin);}},[pin,mode]);
+
+  // Reset checked4 flag whenever user goes below 4 digits (i.e. user is deleting)
+  useEffect(()=>{if(pin.length<EDUCATOR_PIN_LEN&&checked4)setChecked4(false);if(err&&pin.length===0)setErr("");},[pin,checked4,err]);
+
+  // PIN length triggers
+  useEffect(()=>{
+    if(mode!=="pin")return;
+    if(pin.length===EDUCATOR_PIN_LEN&&!checked4){
+      (async()=>{
+        const ok=await tryEducator(pin);
+        // If no educator matches, mark as checked4 so we don't re-run and wait for more digits (director).
+        if(!ok)setChecked4(true);
+      })();
+    }else if(pin.length===DIRECTOR_PIN_LEN){
+      (async()=>{
+        const ok=await tryDirector(pin);
+        if(!ok){setErr("Incorrect PIN. Please try again.");setPin("");setChecked4(false);}
+      })();
+    }
+  },[pin,mode]);
+
   const tabStyle=active=>({flex:1,padding:"0.5rem",fontSize:"0.8rem",fontWeight:600,border:"none",cursor:"pointer",background:active?BRAND:"#f1f5f9",color:active?"white":"#64748b",borderRadius:"0.5rem"});
   return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
@@ -269,11 +311,11 @@ function LoginScreen({onLogin}){
         </div>
         <div style={{display:"flex",gap:6,marginBottom:18,background:"#f8fafc",padding:4,borderRadius:"0.6rem"}}>
           <button onClick={()=>{setMode("pin");setErr("");setPw("");}} style={tabStyle(mode==="pin")}>🔢 PIN</button>
-          <button onClick={()=>{setMode("password");setErr("");setPin("");}} style={tabStyle(mode==="password")}>🔑 Password</button>
+          <button onClick={()=>{setMode("password");setErr("");setPin("");setChecked4(false);}} style={tabStyle(mode==="password")}>🔑 Password</button>
         </div>
         {mode==="pin"?<>
-          <p style={{textAlign:"center",fontSize:"0.75rem",color:"#64748b",marginBottom:14}}>Enter your 6-digit PIN</p>
-          <PinPad value={pin} onChange={setPin}/>
+          <p style={{textAlign:"center",fontSize:"0.75rem",color:"#64748b",marginBottom:14}}>Enter your PIN <span style={{color:"#cbd5e1"}}>· Educators 4 digits · Director 6 digits</span></p>
+          <PinPad value={pin} onChange={setPin} maxLength={DIRECTOR_PIN_LEN}/>
           {err&&<p style={{color:"#ef4444",fontSize:"0.75rem",textAlign:"center",marginTop:10}}>{err}</p>}
           {loading&&<p style={{color:"#64748b",fontSize:"0.75rem",textAlign:"center",marginTop:10}}>Checking...</p>}
         </>:<>
@@ -296,12 +338,12 @@ function PwManager({employees,role,onClose}){
   const[confirmReset,setConfirmReset]=useState(false);const[resetDone,setResetDone]=useState(false);
   const load=async()=>{const{data}=await sb.from("settings").select("key,value");const sp={};(data||[]).forEach(s=>sp[s.key]=s.value);setAp(sp["pw_admin"]||"admin123");setDp(sp["pw_director"]||"123456");const p={};employees.forEach(emp=>{p[emp.name]=emp.password||"";});setEps(p);};
   useEffect(()=>{load();},[]);
-  const onlyDigits=v=>v.replace(/\D/g,"").slice(0,6);
+  const onlyDigits=(v,max)=>v.replace(/\D/g,"").slice(0,max);
   const save=async()=>{
     setErr("");
-    for(const emp of employees){const v=eps[emp.name]||"";if(v&&v.length!==6){setErr(emp.name+"'s PIN must be exactly 6 digits.");return;}}
+    for(const emp of employees){const v=eps[emp.name]||"";if(v&&v.length!==EDUCATOR_PIN_LEN){setErr(emp.name+"'s PIN must be exactly "+EDUCATOR_PIN_LEN+" digits.");return;}}
     if(isAdmin){
-      if(dp&&dp.length!==6){setErr("Director PIN must be exactly 6 digits.");return;}
+      if(dp&&dp.length!==DIRECTOR_PIN_LEN){setErr("Director PIN must be exactly "+DIRECTOR_PIN_LEN+" digits.");return;}
       await sb.from("settings").upsert([{key:"pw_admin",value:ap},{key:"pw_director",value:dp}]);
     }
     for(const emp of employees){await sb.from("employees").update({password:eps[emp.name]||""}).eq("name",emp.name);}
@@ -319,10 +361,10 @@ function PwManager({employees,role,onClose}){
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {isAdmin&&<>
           <div><label style={{fontSize:"0.7rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:4}}>🔑 Admin Password</label><input type="text" value={ap} onChange={e=>setAp(e.target.value)} style={inp}/></div>
-          <div><label style={{fontSize:"0.7rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:4}}>🔢 Director PIN (6 digits)</label><input type="text" inputMode="numeric" maxLength={6} value={dp} onChange={e=>setDp(onlyDigits(e.target.value))} placeholder="000000" style={pinInp}/></div>
+          <div><label style={{fontSize:"0.7rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:4}}>🔢 Director PIN ({DIRECTOR_PIN_LEN} digits)</label><input type="text" inputMode="numeric" maxLength={DIRECTOR_PIN_LEN} value={dp} onChange={e=>setDp(onlyDigits(e.target.value,DIRECTOR_PIN_LEN))} placeholder={"0".repeat(DIRECTOR_PIN_LEN)} style={pinInp}/></div>
         </>}
-        {!isAdmin&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:"0.5rem",padding:"0.6rem 0.8rem",fontSize:"0.75rem",color:"#1d4ed8"}}>Set or update 6-digit PINs for educators. To change your own Director PIN, use the <strong>🔢 My PIN</strong> button.</div>}
-        {employees.length>0?<div><label style={{fontSize:"0.7rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:8}}>🔢 Educator PINs (6 digits each)</label>{employees.map(emp=><div key={emp.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:"0.875rem",color:"#334155",width:"8rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.name}</span><input type="text" inputMode="numeric" maxLength={6} placeholder="000000" value={eps[emp.name]||""} onChange={e=>setEps(p=>({...p,[emp.name]:onlyDigits(e.target.value)}))} style={{...pinInp,flex:1}}/></div>)}</div>:<p style={{fontSize:"0.75rem",color:"#94a3b8",textAlign:"center",padding:"0.5rem 0"}}>No educators yet</p>}
+        {!isAdmin&&<div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:"0.5rem",padding:"0.6rem 0.8rem",fontSize:"0.75rem",color:"#1d4ed8"}}>Set or update {EDUCATOR_PIN_LEN}-digit PINs for educators. To change your own Director PIN, use the <strong>🔢 My PIN</strong> button.</div>}
+        {employees.length>0?<div><label style={{fontSize:"0.7rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:8}}>🔢 Educator PINs ({EDUCATOR_PIN_LEN} digits each)</label>{employees.map(emp=><div key={emp.name} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><span style={{fontSize:"0.875rem",color:"#334155",width:"8rem",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{emp.name}</span><input type="text" inputMode="numeric" maxLength={EDUCATOR_PIN_LEN} placeholder={"0".repeat(EDUCATOR_PIN_LEN)} value={eps[emp.name]||""} onChange={e=>setEps(p=>({...p,[emp.name]:onlyDigits(e.target.value,EDUCATOR_PIN_LEN)}))} style={{...pinInp,flex:1}}/></div>)}</div>:<p style={{fontSize:"0.75rem",color:"#94a3b8",textAlign:"center",padding:"0.5rem 0"}}>No educators yet</p>}
         {err&&<p style={{color:"#ef4444",fontSize:"0.875rem"}}>{err}</p>}
         {saved&&<p style={{color:"#16a34a",fontSize:"0.875rem"}}>{saved}</p>}
         {resetDone&&<p style={{color:"#16a34a",fontSize:"0.8rem",background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:"0.5rem",padding:"0.5rem 0.75rem"}}>✅ Reset complete! Admin: <strong>admin123</strong> · Director PIN: <strong>123456</strong> · All Educator PINs cleared.</p>}
@@ -331,7 +373,7 @@ function PwManager({employees,role,onClose}){
           {confirmReset
             ?<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:"0.5rem",padding:"0.75rem"}}>
               <p style={{fontSize:"0.8rem",color:"#991b1b",marginBottom:8,fontWeight:600}}>⚠️ Reset everything to defaults?</p>
-              <p style={{fontSize:"0.7rem",color:"#7f1d1d",marginBottom:10}}>Admin password → admin123<br/>Director PIN → 123456<br/>All Educator PINs will be <strong>cleared</strong> (they won't be able to log in until you set new PINs).</p>
+              <p style={{fontSize:"0.7rem",color:"#7f1d1d",marginBottom:10}}>Admin password → admin123<br/>Director PIN → 123456<br/>All Educator PINs will be <strong>cleared</strong> (they won't be able to log in until you set new {EDUCATOR_PIN_LEN}-digit PINs).</p>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={doReset} style={{flex:1,fontSize:"0.75rem",background:"#ef4444",color:"white",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer",fontWeight:600}}>Yes, Reset All</button>
                 <button onClick={()=>setConfirmReset(false)} style={{flex:1,fontSize:"0.75rem",background:"#e2e8f0",color:"#475569",border:"none",borderRadius:6,padding:"6px 12px",cursor:"pointer"}}>Cancel</button>
@@ -346,12 +388,14 @@ function PwManager({employees,role,onClose}){
 
 // ── Change My PIN ─────────────────────────────────────────────
 function ChangeMyPw({session,onClose}){
+  const isEducator=session.role==="educator";
+  const PIN_LEN=isEducator?EDUCATOR_PIN_LEN:DIRECTOR_PIN_LEN;
   const[step,setStep]=useState("current");
   const[cur,setCur]=useState("");const[nw,setNw]=useState("");const[con,setCon]=useState("");
   const[err,setErr]=useState("");const[done,setDone]=useState(false);
   const verifyCurrent=async()=>{
     setErr("");
-    if(session.role==="educator"){
+    if(isEducator){
       const{data}=await sb.from("employees").select("password").eq("name",session.empName).single();
       if(!data||cur!==(data.password||"").trim()){setErr("Current PIN is incorrect.");setCur("");return;}
     }else{
@@ -363,21 +407,21 @@ function ChangeMyPw({session,onClose}){
   const saveNew=async()=>{
     setErr("");
     if(nw!==con){setErr("New PINs don't match.");setCon("");return;}
-    if(session.role==="educator"){await sb.from("employees").update({password:nw}).eq("name",session.empName);}
+    if(isEducator){await sb.from("employees").update({password:nw}).eq("name",session.empName);}
     else{await sb.from("settings").upsert({key:"pw_director",value:nw});}
     setDone(true);setTimeout(()=>onClose(),1500);
   };
-  useEffect(()=>{if(step==="current"&&cur.length===6)verifyCurrent();},[cur,step]);
-  useEffect(()=>{if(step==="new"&&nw.length===6)setStep("confirm");},[nw,step]);
-  useEffect(()=>{if(step==="confirm"&&con.length===6)saveNew();},[con,step]);
-  const title=step==="current"?"Enter Current PIN":step==="new"?"Enter New PIN":"Confirm New PIN";
+  useEffect(()=>{if(step==="current"&&cur.length===PIN_LEN)verifyCurrent();},[cur,step]);
+  useEffect(()=>{if(step==="new"&&nw.length===PIN_LEN)setStep("confirm");},[nw,step]);
+  useEffect(()=>{if(step==="confirm"&&con.length===PIN_LEN)saveNew();},[con,step]);
+  const title=step==="current"?"Enter Current PIN":step==="new"?"Enter New PIN ("+PIN_LEN+" digits)":"Confirm New PIN";
   const val=step==="current"?cur:step==="new"?nw:con;
   const setVal=step==="current"?setCur:step==="new"?setNw:setCon;
   return(
     <Modal title="🔢 Change My PIN" onClose={onClose} maxWidth={340}>
       <div>
         <p style={{textAlign:"center",fontSize:"0.85rem",color:"#475569",marginBottom:14,fontWeight:600}}>{title}</p>
-        <PinPad value={val} onChange={setVal}/>
+        <PinPad value={val} onChange={setVal} maxLength={PIN_LEN}/>
         {err&&<p style={{color:"#ef4444",fontSize:"0.75rem",textAlign:"center",marginTop:10}}>{err}</p>}
         {done&&<p style={{color:"#16a34a",fontSize:"0.85rem",textAlign:"center",marginTop:10,fontWeight:600}}>✅ PIN changed!</p>}
         {step!=="current"&&!done&&<button onClick={()=>{setStep("current");setCur("");setNw("");setCon("");setErr("");}} style={{width:"100%",marginTop:10,padding:"0.4rem",borderRadius:"0.5rem",background:"#f1f5f9",color:"#64748b",border:"none",cursor:"pointer",fontSize:"0.75rem"}}>← Start over</button>}
@@ -572,15 +616,6 @@ function Messages({session}){
 }
 
 // ── Shopping Lists ────────────────────────────────────────────
-// Supabase table required:
-//   create table shopping_items (
-//     id bigserial primary key,
-//     store text not null,           -- 'woolworths' or 'tassaway'
-//     name text not null,
-//     qty text,
-//     added_by text,
-//     created_at timestamptz default now()
-//   );
 function ShoppingList({store,storeLabel,storeIcon,accentColor,session}){
   const[items,setItems]=useState([]);
   const[name,setName]=useState("");
@@ -606,7 +641,6 @@ function ShoppingList({store,storeLabel,storeIcon,accentColor,session}){
   };
   const check=async id=>{
     if(!canRemove)return;
-    // Optimistic remove so it feels instant; auto-delete on check
     setItems(it=>it.filter(x=>x.id!==id));
     await sb.from("shopping_items").delete().eq("id",id);
   };
