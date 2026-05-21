@@ -155,6 +155,48 @@ const calcH=(s,e,b)=>{if(!s||!e)return null;const[sh,sm]=s.split(":").map(Number
 const sCol=s=>({"Worked":"#eff6ff;#bfdbfe","Sick Leave":"#fff1f2;#fecdd3","Annual Leave":"#f0fdf4;#bbf7d0","Day Off":"#f9fafb;#e5e7eb","Public Holiday":"#fefce8;#fef08a","Weekend":"#f1f5f9;#cbd5e1"}[s]||"#f9fafb;#e5e7eb").split(";");
 const sBadge=s=>({"Worked":{background:"#dbeafe",color:"#1d4ed8"},"Sick Leave":{background:"#fee2e2",color:"#dc2626"},"Annual Leave":{background:"#dcfce7",color:"#16a34a"},"Day Off":{background:"#f3f4f6",color:"#9ca3af"},"Public Holiday":{background:"#fef9c3",color:"#b45309"},"Weekend":{background:"#e2e8f0",color:"#64748b"}}[s]||{background:"#f3f4f6",color:"#9ca3af"});
 
+// ── Notifications ─────────────────────────────────────────────
+// Soft "ding" via Web Audio (no audio file needed)
+let _audioCtx=null;
+function playDing(){
+  try{
+    if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx;
+    if(ctx.state==="suspended")ctx.resume();
+    const t=ctx.currentTime;
+    // Two-tone soft chime: E5 then G5
+    [{f:659.25,start:0},{f:783.99,start:0.12}].forEach(({f,start})=>{
+      const osc=ctx.createOscillator();const gain=ctx.createGain();
+      osc.type="sine";osc.frequency.value=f;
+      gain.gain.setValueAtTime(0,t+start);
+      gain.gain.linearRampToValueAtTime(0.15,t+start+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+start+0.4);
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.start(t+start);osc.stop(t+start+0.45);
+    });
+  }catch(e){/* audio blocked or unsupported — silent fail */}
+}
+
+// Desktop notification — call only when document is hidden
+function showDesktopNotification(title,body){
+  try{
+    if(!("Notification" in window))return;
+    if(Notification.permission!=="granted")return;
+    const n=new Notification(title,{body,tag:"irsk-msg",renotify:true,silent:false});
+    n.onclick=()=>{window.focus();n.close();};
+    // Auto-close after 6s
+    setTimeout(()=>n.close(),6000);
+  }catch(e){/* ignore */}
+}
+
+// Ask for permission (gentle — only once, only if user hasn't decided)
+function requestNotificationPermission(){
+  if(!("Notification" in window))return Promise.resolve("unsupported");
+  if(Notification.permission==="granted"||Notification.permission==="denied")return Promise.resolve(Notification.permission);
+  return Notification.requestPermission();
+}
+
+
 // ── CSV/XLSX Parser ───────────────────────────────────────────
 const parseTm=t=>{if(!t)return"";t=String(t).trim();const ap=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(ap){let h=parseInt(ap[1]);const p=ap[3].toUpperCase();if(p==="PM"&&h!==12)h+=12;if(p==="AM"&&h===12)h=0;return String(h).padStart(2,"0")+":"+ap[2];}const pl=t.match(/(\d+):(\d+)/);if(pl)return String(parseInt(pl[1])).padStart(2,"0")+":"+pl[2];return"";};
 const parseDt=d=>{if(!d)return null;const p=String(d).trim().split("/");if(p.length===3)return new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]));return null;};
@@ -821,6 +863,53 @@ function App(){
   useEffect(()=>{loadData();},[]);
   useEffect(()=>{if(session)setView("dashboard");},[session]);
   useEffect(()=>{if(session?.role==="educator")setSelectedEmp(session.empName);},[session]);
+
+  // ── App-level message notifications ─────────────────────────
+  // Listens for new messages anywhere in the app (works even when not on Dashboard).
+  // Skips own messages. Clears the badge when tab regains focus.
+  const[unread,setUnread]=useState(0);
+  useEffect(()=>{
+    if(!session)return;
+    const myName=session.role==="educator"?session.empName:session.role==="admin"?"Admin":"Director";
+
+    // Ask for desktop notification permission once, shortly after login
+    const permTimer=setTimeout(()=>{requestNotificationPermission();},2000);
+
+    const sub=sb.channel("app_msg_notifs")
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
+        const m=payload.new;
+        if(!m||m.sender===myName)return; // skip own messages
+        // Always ding
+        playDing();
+        // Bump unread count
+        setUnread(u=>u+1);
+        // Desktop notification only when tab is hidden/unfocused (don't bother user who's looking)
+        if(document.hidden||!document.hasFocus()){
+          const preview=(m.text||"").length>80?m.text.slice(0,80)+"…":(m.text||"");
+          showDesktopNotification(m.sender+" — iRSK",preview);
+        }
+      })
+      .subscribe();
+
+    // Clear unread when tab regains focus
+    const onFocus=()=>setUnread(0);
+    const onVisible=()=>{if(!document.hidden)setUnread(0);};
+    window.addEventListener("focus",onFocus);
+    document.addEventListener("visibilitychange",onVisible);
+
+    return()=>{
+      clearTimeout(permTimer);
+      sb.removeChannel(sub);
+      window.removeEventListener("focus",onFocus);
+      document.removeEventListener("visibilitychange",onVisible);
+      setUnread(0);
+    };
+  },[session]);
+
+  // Update the browser tab title with the unread count
+  useEffect(()=>{
+    document.title=unread>0?"("+unread+") iRSK":"iRSK";
+  },[unread]);
 
   const addEmp=async()=>{const n=newEmp.trim();if(!n||employees.find(e=>e.name===n))return;await sb.from("employees").insert({name:n,role:"educator"});setNewEmp("");await loadData();};
   const delEmp=async n=>{await sb.from("employees").delete().eq("name",n);if(selectedEmp===n)setSelectedEmp(null);setDelConfirm(null);await loadData();};
