@@ -155,6 +155,14 @@ const calcH=(s,e,b)=>{if(!s||!e)return null;const[sh,sm]=s.split(":").map(Number
 const sCol=s=>({"Worked":"#eff6ff;#bfdbfe","Sick Leave":"#fff1f2;#fecdd3","Annual Leave":"#f0fdf4;#bbf7d0","Day Off":"#f9fafb;#e5e7eb","Public Holiday":"#fefce8;#fef08a","Weekend":"#f1f5f9;#cbd5e1"}[s]||"#f9fafb;#e5e7eb").split(";");
 const sBadge=s=>({"Worked":{background:"#dbeafe",color:"#1d4ed8"},"Sick Leave":{background:"#fee2e2",color:"#dc2626"},"Annual Leave":{background:"#dcfce7",color:"#16a34a"},"Day Off":{background:"#f3f4f6",color:"#9ca3af"},"Public Holiday":{background:"#fef9c3",color:"#b45309"},"Weekend":{background:"#e2e8f0",color:"#64748b"}}[s]||{background:"#f3f4f6",color:"#9ca3af"});
 
+// ── Payroll Cycle Helpers ─────────────────────────────────────
+// Given an anchor (the Monday start of cycle #1) and today's date, return how many fortnights to generate.
+// We always generate enough to cover from anchor up to (today + 14 days), so the next cycle is ready.
+const addDays=(dateStr,days)=>{const d=new Date(dateStr+"T12:00:00");d.setDate(d.getDate()+days);return toKey(d);};
+const daysBetween=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/86400000);
+const fmtCycleRange=fs=>{if(!fs)return"";const d1=new Date(fs+"T12:00:00");const d2=new Date(fs+"T12:00:00");d2.setDate(d2.getDate()+13);const a=d1.toLocaleDateString("en-AU",{timeZone:SYD,day:"numeric",month:"short"});const b=d2.toLocaleDateString("en-AU",{timeZone:SYD,day:"numeric",month:"short",year:"numeric"});return a+" → "+b;};
+const fmtCycleName=fs=>{if(!fs)return"Timesheet";const d=new Date(fs+"T12:00:00");return"Timesheet"+String(d.getDate()).padStart(2,"0")+String(d.getMonth()+1).padStart(2,"0")+String(d.getFullYear()).slice(-2);};
+
 // ── Notifications ─────────────────────────────────────────────
 // Soft "ding" via Web Audio (no audio file needed)
 let _audioCtx=null;
@@ -184,18 +192,15 @@ function showDesktopNotification(title,body){
     if(Notification.permission!=="granted")return;
     const n=new Notification(title,{body,tag:"irsk-msg",renotify:true,silent:false});
     n.onclick=()=>{window.focus();n.close();};
-    // Auto-close after 6s
     setTimeout(()=>n.close(),6000);
   }catch(e){/* ignore */}
 }
 
-// Ask for permission (gentle — only once, only if user hasn't decided)
 function requestNotificationPermission(){
   if(!("Notification" in window))return Promise.resolve("unsupported");
   if(Notification.permission==="granted"||Notification.permission==="denied")return Promise.resolve(Notification.permission);
   return Notification.requestPermission();
 }
-
 
 // ── CSV/XLSX Parser ───────────────────────────────────────────
 const parseTm=t=>{if(!t)return"";t=String(t).trim();const ap=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(ap){let h=parseInt(ap[1]);const p=ap[3].toUpperCase();if(p==="PM"&&h!==12)h+=12;if(p==="AM"&&h===12)h=0;return String(h).padStart(2,"0")+":"+ap[2];}const pl=t.match(/(\d+):(\d+)/);if(pl)return String(parseInt(pl[1])).padStart(2,"0")+":"+pl[2];return"";};
@@ -292,16 +297,11 @@ function PinPad({value,onChange,maxLength=6}){
 }
 
 // ── Login ─────────────────────────────────────────────────────
-// PIN pad shows max length = DIRECTOR_PIN_LEN (6) so director can still type the full PIN.
-// At 4 digits → try educators first; if a match, log in.
-// At 6 digits → try director; if not a match, error and clear.
-// If 4 digits don't match any educator, we just wait silently until 5/6 digits, where
-// it's either still no-match (then 6 = director check) or wrong.
 function LoginScreen({onLogin}){
   const[mode,setMode]=useState("pin");
   const[pw,setPw]=useState("");const[pin,setPin]=useState("");
   const[err,setErr]=useState("");const[loading,setLoading]=useState(false);
-  const[checked4,setChecked4]=useState(false); // track that we've already tried educators at len=4
+  const[checked4,setChecked4]=useState(false);
 
   const goPw=async()=>{
     setLoading(true);setErr("");
@@ -314,7 +314,6 @@ function LoginScreen({onLogin}){
     finally{setLoading(false);}
   };
 
-  // Try educator login when PIN reaches EDUCATOR_PIN_LEN
   const tryEducator=async p=>{
     setLoading(true);setErr("");
     try{
@@ -327,7 +326,6 @@ function LoginScreen({onLogin}){
     finally{setLoading(false);}
   };
 
-  // Try director when PIN reaches DIRECTOR_PIN_LEN
   const tryDirector=async p=>{
     setLoading(true);setErr("");
     try{
@@ -339,16 +337,13 @@ function LoginScreen({onLogin}){
     finally{setLoading(false);}
   };
 
-  // Reset checked4 flag whenever user goes below 4 digits (i.e. user is deleting)
   useEffect(()=>{if(pin.length<EDUCATOR_PIN_LEN&&checked4)setChecked4(false);if(err&&pin.length===0)setErr("");},[pin,checked4,err]);
 
-  // PIN length triggers
   useEffect(()=>{
     if(mode!=="pin")return;
     if(pin.length===EDUCATOR_PIN_LEN&&!checked4){
       (async()=>{
         const ok=await tryEducator(pin);
-        // If no educator matches, mark as checked4 so we don't re-run and wait for more digits (director).
         if(!ok)setChecked4(true);
       })();
     }else if(pin.length===DIRECTOR_PIN_LEN){
@@ -502,7 +497,7 @@ function ImportModal({onImport,onClose}){
     <Modal title="📥 Import Timesheet" onClose={onClose} maxWidth={480}
       footer={parsed&&<div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><button onClick={onClose} style={{padding:"0.4rem 1rem",borderRadius:"0.5rem",background:"#f1f5f9",color:"#475569",border:"none",cursor:"pointer"}}>Cancel</button><button onClick={()=>{onImport(parsed,start);onClose();}} style={{padding:"0.4rem 1rem",borderRadius:"0.5rem",background:BRAND,color:"white",fontWeight:600,border:"none",cursor:"pointer"}}>✅ Import</button></div>}>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:"0.75rem",padding:"0.75rem",fontSize:"0.75rem",color:"#1d4ed8"}}><p style={{fontWeight:600,marginBottom:4}}>KinderM8 Staff Timesheet Report</p><p>Accepts .xlsx or .csv</p></div>
+        <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:"0.75rem",padding:"0.75rem",fontSize:"0.75rem",color:"#1d4ed8"}}><p style={{fontWeight:600,marginBottom:4}}>KinderM8 Staff Timesheet Report</p><p>Accepts .xlsx or .csv. The cycle that matches the file's start date will be selected automatically (if it doesn't exist, please create cycles back to that date first).</p></div>
         <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",background:"#f8fafc",border:"2px dashed #cbd5e1",borderRadius:"0.75rem",padding:"0.75rem 1rem"}}><span style={{fontSize:"1.5rem"}}>📎</span><div><div style={{fontWeight:600,color:"#475569",fontSize:"0.875rem"}}>Click to select file</div><div style={{fontSize:"0.75rem",color:"#94a3b8"}}>.xlsx or .csv</div></div><input type="file" accept=".xlsx,.csv" ref={ref} onChange={go} style={{display:"none"}}/></label>
         {status&&<p style={{fontSize:"0.875rem",fontWeight:500,color:status.startsWith("✅")?"#16a34a":status.startsWith("❌")||status.startsWith("⚠️")?"#ef4444":"#64748b",whiteSpace:"pre-wrap"}}>{status}</p>}
         {preview&&<div><p style={{fontSize:"0.75rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",marginBottom:8}}>Staff found:</p>
@@ -511,6 +506,33 @@ function ImportModal({onImport,onClose}){
           </div>
           {start&&<p style={{fontSize:"0.75rem",color:"#64748b",marginTop:8}}>📅 Fortnight start: <strong>{fmtDate(start)}</strong></p>}
         </div>}
+      </div>
+    </Modal>
+  );
+}
+
+// ── Cycle Setup Modal (first-time only) ───────────────────────
+function CycleSetupModal({onSave,onClose}){
+  const[start,setStart]=useState("");const[err,setErr]=useState("");
+  const save=async()=>{
+    setErr("");
+    if(!start){setErr("Please pick a start date.");return;}
+    const d=new Date(start+"T12:00:00");
+    if(d.getDay()!==1){setErr("The start date must be a Monday (fortnights run Mon–Sun for 14 days).");return;}
+    await onSave(start);
+  };
+  return(
+    <Modal title="📅 Set up Payroll Cycles" onClose={onClose} maxWidth={420}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:"0.5rem",padding:"0.75rem",fontSize:"0.8rem",color:"#1d4ed8"}}>
+          Pick the <strong>Monday</strong> that your <strong>first</strong> payroll cycle starts on. iRSK will then auto-generate every fortnight forward from that date — you'll see them in the cycles list and can lock/unlock each one.
+        </div>
+        <div>
+          <label style={{fontSize:"0.75rem",color:"#64748b",display:"block",marginBottom:4}}>Cycle #1 Start Date (Monday)</label>
+          <input type="date" value={start} onChange={e=>setStart(e.target.value)} style={{width:"100%",border:"1px solid #e2e8f0",borderRadius:"0.5rem",padding:"0.5rem 0.75rem",fontSize:"0.875rem",boxSizing:"border-box",outline:"none"}}/>
+        </div>
+        {err&&<p style={{color:"#ef4444",fontSize:"0.8rem"}}>{err}</p>}
+        <button onClick={save} disabled={!start} style={{padding:"0.5rem",borderRadius:"0.5rem",background:BRAND,color:"white",fontWeight:600,fontSize:"0.875rem",border:"none",cursor:"pointer",opacity:!start?0.5:1}}>Create cycles</button>
       </div>
     </Modal>
   );
@@ -760,17 +782,6 @@ function ShoppingLists({session}){
 }
 
 // ── Maintenance ───────────────────────────────────────────────
-// Supabase table required:
-//   create table maintenance (
-//     id bigserial primary key,
-//     description text not null,
-//     photo text,
-//     reported_by text,
-//     status text not null default 'open',
-//     done_by text,
-//     done_at timestamptz,
-//     created_at timestamptz default now()
-//   );
 function Maintenance({session}){
   const[items,setItems]=useState([]);
   const[tab,setTab]=useState("open");
@@ -800,7 +811,6 @@ function Maintenance({session}){
   const onFile=async e=>{
     const f=e.target.files[0];if(!f)return;
     if(!f.type.startsWith("image/")){alert("Please select an image file.");return;}
-    // Warn for very large files (base64 inflates ~33%)
     if(f.size>5*1024*1024){
       if(!confirm("This image is "+(f.size/1024/1024).toFixed(1)+"MB and may slow things down. Continue anyway?"))return;
     }
@@ -868,7 +878,6 @@ function Maintenance({session}){
         </span>
       </div>
 
-      {/* Create form — director only */}
       {canCreate&&<div style={{padding:"0.875rem 1rem",borderBottom:"1px solid #e2e8f0",background:"#fffbeb"}}>
         <label style={{fontSize:"0.7rem",fontWeight:700,color:"#92400e",textTransform:"uppercase",display:"block",marginBottom:6}}>Report a new item</label>
         <textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Describe the issue (e.g. broken tap in Toddler bathroom)..." rows={3}
@@ -888,13 +897,11 @@ function Maintenance({session}){
         </div>
       </div>}
 
-      {/* Tabs */}
       <div style={{padding:"0.75rem 1rem",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,flexWrap:"wrap"}}>
         {tabBtn("open","🟠 Open",openCount,"#f59e0b")}
         {tabBtn("done","✅ Done",doneCount,"#22c55e")}
       </div>
 
-      {/* List */}
       <div style={{padding:"1rem",display:"flex",flexDirection:"column",gap:10}}>
         {filtered.length===0
           ?<div style={{textAlign:"center",color:"#94a3b8",padding:"2.5rem 0"}}>
@@ -934,7 +941,6 @@ function Maintenance({session}){
         }
       </div>
 
-      {/* Photo lightbox */}
       {prev&&<div onClick={()=>setPrev(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100,padding:16}}>
         <div style={{position:"relative",maxWidth:800,width:"100%"}}>
           <img src={prev} style={{width:"100%",borderRadius:12,maxHeight:"85vh",objectFit:"contain"}}/>
@@ -1017,7 +1023,10 @@ function App(){
   const[timesheets,setTimesheets]=useState({});
   const[expCache,setExpCache]=useState({});
   const[mcCache,setMcCache]=useState({});
-  const[fortnightStart,setFortnightStart]=useState("");
+  const[fortnightStart,setFortnightStart]=useState(""); // == selected cycle start
+  const[cycles,setCycles]=useState([]);                  // all payroll cycles, newest first
+  const[cycleAnchor,setCycleAnchor]=useState("");        // start date of cycle #1
+  const[showCycleSetup,setShowCycleSetup]=useState(false);
   const[view,setView]=useState("dashboard");
   const[delConfirm,setDelConfirm]=useState(null);
   const[showPw,setShowPw]=useState(false);
@@ -1027,20 +1036,95 @@ function App(){
   const[expanded,setExpanded]=useState(null);
   const[loading,setLoading]=useState(true);
 
+  // Selected cycle object (or null)
+  const selectedCycle=cycles.find(c=>c.start_date===fortnightStart)||null;
+  const isLocked=!!(selectedCycle&&selectedCycle.is_locked);
+
+  // ── Cycle generation ─────────────────────────────────────────
+  // Ensures payroll_cycles has rows from anchor up to today+14 days (i.e. next cycle ready).
+  const generateCyclesFromAnchor=async(anchor)=>{
+    if(!anchor)return[];
+    // Determine target end: today + 14 days
+    const today=todaySyd();
+    const dayDiff=daysBetween(anchor,today);
+    if(dayDiff<0){
+      // anchor is in the future; just generate cycle #1
+      const{data:existing}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
+      const have=new Set((existing||[]).map(c=>c.start_date));
+      if(!have.has(anchor)){
+        await sb.from("payroll_cycles").insert({cycle_number:1,start_date:anchor,end_date:addDays(anchor,13),is_locked:false});
+      }
+    }else{
+      const fortnightsNeeded=Math.floor(dayDiff/14)+2; // +2 = current + next
+      const{data:existing}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
+      const have=new Set((existing||[]).map(c=>c.start_date));
+      const toInsert=[];
+      for(let i=0;i<fortnightsNeeded;i++){
+        const sd=addDays(anchor,i*14);
+        if(!have.has(sd)){
+          toInsert.push({cycle_number:i+1,start_date:sd,end_date:addDays(sd,13),is_locked:false});
+        }
+      }
+      if(toInsert.length>0){
+        await sb.from("payroll_cycles").insert(toInsert);
+      }
+    }
+    const{data:all}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
+    return all||[];
+  };
+
+  // Pick which cycle should be selected by default (the one containing today, or the most recent)
+  const pickDefaultCycle=(allCycles)=>{
+    if(!allCycles||!allCycles.length)return"";
+    const today=todaySyd();
+    const current=allCycles.find(c=>c.start_date<=today&&c.end_date>=today);
+    if(current)return current.start_date;
+    return allCycles[0].start_date; // newest if today is past all of them
+  };
+
   const loadData=async()=>{
     setLoading(true);
     try{
       const{data:emps}=await sb.from("employees").select("*").order("name");setEmployees(emps||[]);
       const{data:settings}=await sb.from("settings").select("key,value");
       const sp={};(settings||[]).forEach(s=>sp[s.key]=s.value);
-      const fs=sp["fortnight_start"]||"";setFortnightStart(fs);
-      if(fs){
-        const{data:ts}=await sb.from("timesheets").select("*").eq("fortnight_start",fs);
-        const tsMap={};(ts||[]).forEach(t=>tsMap[t.employee_name]=safeSh(t.days));setTimesheets(tsMap);
-        const{data:ex}=await sb.from("expenses").select("*").eq("fortnight_start",fs);
-        const exMap={};(ex||[]).forEach(e=>exMap[e.employee_name]=e.data||[]);setExpCache(exMap);
-        const{data:mc}=await sb.from("medical_certs").select("*").eq("fortnight_start",fs);
-        const mcMap={};(mc||[]).forEach(m=>mcMap[m.employee_name]=m.data||[]);setMcCache(mcMap);
+
+      const anchor=sp["cycle_anchor"]||"";
+      setCycleAnchor(anchor);
+
+      let allCycles=[];
+      if(anchor){
+        allCycles=await generateCyclesFromAnchor(anchor);
+        setCycles(allCycles);
+        // Pick selected cycle: existing fortnight_start setting if it matches a cycle, else default
+        let sel=sp["fortnight_start"]||"";
+        if(!allCycles.find(c=>c.start_date===sel)){
+          sel=pickDefaultCycle(allCycles);
+          if(sel)await sb.from("settings").upsert({key:"fortnight_start",value:sel});
+        }
+        setFortnightStart(sel);
+
+        if(sel){
+          const{data:ts}=await sb.from("timesheets").select("*").eq("fortnight_start",sel);
+          const tsMap={};(ts||[]).forEach(t=>tsMap[t.employee_name]=safeSh(t.days));setTimesheets(tsMap);
+          const{data:ex}=await sb.from("expenses").select("*").eq("fortnight_start",sel);
+          const exMap={};(ex||[]).forEach(e=>exMap[e.employee_name]=e.data||[]);setExpCache(exMap);
+          const{data:mc}=await sb.from("medical_certs").select("*").eq("fortnight_start",sel);
+          const mcMap={};(mc||[]).forEach(m=>mcMap[m.employee_name]=m.data||[]);setMcCache(mcMap);
+        }
+      }else{
+        // No anchor set yet — backward compat: if fortnight_start is set, treat that as a one-off
+        const fs=sp["fortnight_start"]||"";
+        setFortnightStart(fs);
+        setCycles([]);
+        if(fs){
+          const{data:ts}=await sb.from("timesheets").select("*").eq("fortnight_start",fs);
+          const tsMap={};(ts||[]).forEach(t=>tsMap[t.employee_name]=safeSh(t.days));setTimesheets(tsMap);
+          const{data:ex}=await sb.from("expenses").select("*").eq("fortnight_start",fs);
+          const exMap={};(ex||[]).forEach(e=>exMap[e.employee_name]=e.data||[]);setExpCache(exMap);
+          const{data:mc}=await sb.from("medical_certs").select("*").eq("fortnight_start",fs);
+          const mcMap={};(mc||[]).forEach(m=>mcMap[m.employee_name]=m.data||[]);setMcCache(mcMap);
+        }
       }
     }catch(e){console.error(e);}
     finally{setLoading(false);}
@@ -1050,36 +1134,38 @@ function App(){
   useEffect(()=>{if(session)setView("dashboard");},[session]);
   useEffect(()=>{if(session?.role==="educator")setSelectedEmp(session.empName);},[session]);
 
+  // Open setup modal automatically if admin logs in with no anchor
+  useEffect(()=>{
+    if(!loading&&session?.role==="admin"&&!cycleAnchor){
+      // small delay so the dashboard mounts first
+      const t=setTimeout(()=>setShowCycleSetup(true),300);
+      return()=>clearTimeout(t);
+    }
+  },[loading,session,cycleAnchor]);
+
   // ── App-level message notifications ─────────────────────────
-  // Listens for new messages anywhere in the app (works even when not on Dashboard).
-  // Skips own messages. Clears the badge when tab regains focus.
   const[unread,setUnread]=useState(0);
   useEffect(()=>{
     if(!session)return;
     const myName=session.role==="educator"?session.empName:session.role==="admin"?"Admin":"Director";
 
-    // Ask for desktop notification permission once, shortly after login
     const permTimer=setTimeout(()=>{requestNotificationPermission();},2000);
 
     const sub=sb.channel("app_msg_notifs")
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
         const m=payload.new;
-        if(!m||m.sender===myName)return; // skip own messages
-        // Always ding
+        if(!m||m.sender===myName)return;
         playDing();
-        // Bump unread count
         setUnread(u=>u+1);
-        // Desktop notification only when tab is hidden/unfocused (don't bother user who's looking)
         if(document.hidden||!document.hasFocus()){
           const preview=(m.text||"").length>80?m.text.slice(0,80)+"…":(m.text||"");
           showDesktopNotification(m.sender+" — iRSK",preview);
         }
       })
-      // ── Maintenance notifications (admin + director only) ──
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"maintenance"},payload=>{
         if(session.role!=="admin"&&session.role!=="director")return;
         const it=payload.new;
-        if(!it||it.reported_by===myName)return; // skip if you reported it yourself
+        if(!it||it.reported_by===myName)return;
         playDing();
         setUnread(u=>u+1);
         if(document.hidden||!document.hasFocus()){
@@ -1091,9 +1177,8 @@ function App(){
         if(session.role!=="admin"&&session.role!=="director")return;
         const it=payload.new;const old=payload.old;
         if(!it)return;
-        // Only notify on the open→done transition (not on re-opens or other edits)
         if(old&&old.status==="open"&&it.status==="done"){
-          if(it.done_by===myName)return; // you marked it done — don't notify yourself
+          if(it.done_by===myName)return;
           playDing();
           setUnread(u=>u+1);
           if(document.hidden||!document.hasFocus()){
@@ -1104,7 +1189,6 @@ function App(){
       })
       .subscribe();
 
-    // Clear unread when tab regains focus
     const onFocus=()=>setUnread(0);
     const onVisible=()=>{if(!document.hidden)setUnread(0);};
     window.addEventListener("focus",onFocus);
@@ -1119,7 +1203,6 @@ function App(){
     };
   },[session]);
 
-  // Update the browser tab title with the unread count
   useEffect(()=>{
     document.title=unread>0?"("+unread+") iRSK":"iRSK";
   },[unread]);
@@ -1128,20 +1211,72 @@ function App(){
   const delEmp=async n=>{await sb.from("employees").delete().eq("name",n);if(selectedEmp===n)setSelectedEmp(null);setDelConfirm(null);await loadData();};
   const getTS=emp=>timesheets[emp]||makeFN(fortnightStart);
   const updDay=async(emp,idx,field,val)=>{
+    if(isLocked)return; // safety net
     const sheet=[...getTS(emp)];sheet[idx]={...sheet[idx],[field]:val};
     if(field==="status"&&val!=="Worked")sheet[idx]={...sheet[idx],start:"",end:"",breakMins:"",decimalHours:""};
     setTimesheets(t=>({...t,[emp]:sheet}));
     if(fortnightStart)await sb.from("timesheets").upsert({employee_name:emp,fortnight_start:fortnightStart,days:sheet,updated_at:new Date().toISOString()},{onConflict:"employee_name,fortnight_start"});
   };
-  const setFS=async v=>{setFortnightStart(v);await sb.from("settings").upsert({key:"fortnight_start",value:v});const{data:ts}=await sb.from("timesheets").select("*").eq("fortnight_start",v);const tsMap={};(ts||[]).forEach(t=>tsMap[t.employee_name]=safeSh(t.days));setTimesheets(tsMap);};
+  // Select a cycle (changes fortnight_start setting + reloads timesheet/expenses/med-certs caches)
+  const selectCycle=async(startDate)=>{
+    setFortnightStart(startDate);
+    await sb.from("settings").upsert({key:"fortnight_start",value:startDate});
+    const{data:ts}=await sb.from("timesheets").select("*").eq("fortnight_start",startDate);
+    const tsMap={};(ts||[]).forEach(t=>tsMap[t.employee_name]=safeSh(t.days));setTimesheets(tsMap);
+    const{data:ex}=await sb.from("expenses").select("*").eq("fortnight_start",startDate);
+    const exMap={};(ex||[]).forEach(e=>exMap[e.employee_name]=e.data||[]);setExpCache(exMap);
+    const{data:mc}=await sb.from("medical_certs").select("*").eq("fortnight_start",startDate);
+    const mcMap={};(mc||[]).forEach(m=>mcMap[m.employee_name]=m.data||[]);setMcCache(mcMap);
+  };
+  // Lock/unlock a cycle
+  const toggleLock=async(cycle)=>{
+    const newLocked=!cycle.is_locked;
+    await sb.from("payroll_cycles").update({
+      is_locked:newLocked,
+      locked_at:newLocked?new Date().toISOString():null,
+      locked_by:newLocked?"Admin":null
+    }).eq("id",cycle.id);
+    const{data:all}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
+    setCycles(all||[]);
+  };
+  // First-time anchor save
+  const saveAnchor=async(anchor)=>{
+    await sb.from("settings").upsert({key:"cycle_anchor",value:anchor});
+    setCycleAnchor(anchor);
+    const all=await generateCyclesFromAnchor(anchor);
+    setCycles(all);
+    const sel=pickDefaultCycle(all);
+    if(sel){
+      await sb.from("settings").upsert({key:"fortnight_start",value:sel});
+      await selectCycle(sel);
+    }
+    setShowCycleSetup(false);
+  };
+
   const doImport=async(data,fs)=>{
     for(const name of Object.keys(data)){await sb.from("employees").upsert({name,role:"educator"},{onConflict:"name",ignoreDuplicates:true});}
-    if(fs){await sb.from("settings").upsert({key:"fortnight_start",value:fs});setFortnightStart(fs);}
+    if(fs){
+      // Ensure the cycle for this fs exists if we have an anchor and the date aligns
+      if(cycleAnchor){
+        const diff=daysBetween(cycleAnchor,fs);
+        if(diff>=0&&diff%14===0){
+          const{data:existing}=await sb.from("payroll_cycles").select("*").eq("start_date",fs);
+          if(!existing||!existing.length){
+            await sb.from("payroll_cycles").insert({cycle_number:(diff/14)+1,start_date:fs,end_date:addDays(fs,13),is_locked:false});
+          }
+        }
+      }
+      await sb.from("settings").upsert({key:"fortnight_start",value:fs});
+    }
     for(const[name,days] of Object.entries(data)){await sb.from("timesheets").upsert({employee_name:name,fortnight_start:fs||fortnightStart,days,updated_at:new Date().toISOString()},{onConflict:"employee_name,fortnight_start"});}
     await loadData();
   };
   const summ=emp=>{const s=getTS(emp);let td=0,sk=0,al=0,ph=0;s.forEach(d=>{if(d.status==="Sick Leave"){sk++;return;}if(d.status==="Annual Leave"){al++;return;}if(d.status==="Public Holiday"){ph++;return;}if(d.status==="Day Off"||d.status==="Weekend")return;if(d.start&&d.end){const m=calcH(d.start,d.end,d.breakMins);if(m!=null){td+=m/60;return;}}if(d.decimalHours){const v=parseFloat(d.decimalHours);if(!isNaN(v)&&v>0)td+=v;}});return{td,sk,al,ph};};
-  const canEdit=emp=>session?.role==="admin"||session?.role==="director"||(session?.role==="educator"&&session.empName===emp);
+  // canEdit now also respects cycle lock
+  const canEdit=emp=>{
+    if(isLocked)return false;
+    return session?.role==="admin"||session?.role==="director"||(session?.role==="educator"&&session.empName===emp);
+  };
   const canManage=session?.role==="admin";
   const visEmps=session?.role==="educator"?employees.filter(e=>e.name===session.empName):employees;
   const roleColor={admin:"#e8192c",director:"#3b82f6",educator:"#22c55e"}[session?.role];
@@ -1157,6 +1292,7 @@ function App(){
       {showChangePw&&<ChangeMyPw session={session} onClose={()=>setShowChangePw(false)}/>}
       {showPrint&&<PrintPreview employees={visEmps} fortnightStart={fortnightStart} getTimesheet={getTS} getExpenses={emp=>expCache[emp]||[]} getMedCerts={emp=>mcCache[emp]||[]} onClose={()=>setShowPrint(false)}/>}
       {showImport&&<ImportModal onImport={doImport} onClose={()=>setShowImport(false)}/>}
+      {showCycleSetup&&<CycleSetupModal onSave={saveAnchor} onClose={()=>setShowCycleSetup(false)}/>}
 
       {/* Header */}
       <div className="app-header">
@@ -1170,10 +1306,7 @@ function App(){
           {btn("🏠 Dashboard",()=>setView("dashboard"),view==="dashboard")}
           {btn("🛒 Shopping",()=>setView("shopping"),view==="shopping")}
           {(session.role==="admin"||session.role==="director")&&btn("🔧 Maintenance",()=>setView("maintenance"),view==="maintenance")}
-          {canManage&&btn("📋 Timesheet",()=>setView("timesheet"),view==="timesheet")}
-          {canManage&&(view==="timesheet"||view==="summary")&&btn("📊 Summary",()=>setView("summary"),view==="summary")}
-          {canManage&&(view==="timesheet"||view==="summary")&&btn("📥 Import",()=>setShowImport(true),false)}
-          {canManage&&(view==="timesheet"||view==="summary")&&btn("🖨️ Export",()=>setShowPrint(true),false)}
+          {canManage&&btn("📋 Timesheet",()=>setView("timesheet"),view==="timesheet"||view==="summary")}
           {(session.role==="admin"||session.role==="director")&&btn("🔐 Passwords",()=>setShowPw(true),false)}
           {session.role!=="admin"&&btn("🔢 My PIN",()=>setShowChangePw(true),false)}
           <button onClick={()=>setSession(null)} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:"#f1f5f9",color:"#ef4444"}}>Logout</button>
@@ -1190,10 +1323,66 @@ function App(){
       {view==="maintenance"&&<Maintenance session={session}/>}
 
       {/* Timesheet & Summary — with left panel */}
-      {view!=="dashboard"&&view!=="shopping"&&view!=="maintenance"&&(
+      {view!=="dashboard"&&view!=="shopping"&&view!=="maintenance"&&(<>
+        {/* Timesheet sub-menu */}
+        {canManage&&<div style={{background:"white",borderRadius:"1rem",boxShadow:"0 2px 8px rgba(0,0,0,0.07)",padding:"0.6rem 0.9rem",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",borderLeft:"4px solid "+BRAND}}>
+          <span style={{fontSize:"0.75rem",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.05em",marginRight:4}}>Timesheet</span>
+          <button onClick={()=>setView("timesheet")} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:view==="timesheet"?BRAND:"#f1f5f9",color:view==="timesheet"?"white":"#475569"}}>📋 Entries</button>
+          <button onClick={()=>setView("summary")} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:view==="summary"?BRAND:"#f1f5f9",color:view==="summary"?"white":"#475569"}}>📊 Summary</button>
+          <div style={{width:1,height:24,background:"#e2e8f0",margin:"0 4px"}}></div>
+          <button onClick={()=>setShowImport(true)} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:"#f1f5f9",color:"#475569"}}>📥 Import</button>
+          <button onClick={()=>setShowPrint(true)} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:"#f1f5f9",color:"#475569"}}>🖨️ Export</button>
+        </div>}
         <div className="app-2col">
           {/* Left Panel */}
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
+            {/* Payroll Cycles list — admin only */}
+            {canManage&&<div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{fontWeight:600,color:"#334155"}}>📅 Payroll Cycles</div>
+                {cycleAnchor&&<button onClick={()=>setShowCycleSetup(true)} title="Reset/change the cycle anchor date" style={{fontSize:"0.7rem",background:"none",border:"1px solid #e2e8f0",borderRadius:6,padding:"2px 8px",color:"#94a3b8",cursor:"pointer"}}>⚙️</button>}
+              </div>
+              {!cycleAnchor
+                ?<div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:"0.5rem",padding:"0.75rem",fontSize:"0.75rem",color:"#92400e"}}>
+                  <p style={{marginBottom:8}}>No payroll cycles yet.</p>
+                  <button onClick={()=>setShowCycleSetup(true)} style={{padding:"0.4rem 0.75rem",borderRadius:"0.5rem",background:BRAND,color:"white",fontWeight:600,fontSize:"0.75rem",border:"none",cursor:"pointer"}}>Set up cycles →</button>
+                </div>
+                :cycles.length===0
+                  ?<p style={{fontSize:"0.75rem",color:"#94a3b8",textAlign:"center",padding:"0.5rem 0"}}>Generating cycles…</p>
+                  :<div style={{maxHeight:380,overflowY:"auto",display:"flex",flexDirection:"column",gap:4,marginLeft:-4,marginRight:-4,paddingLeft:4,paddingRight:4}}>
+                    {cycles.map(c=>{
+                      const isSel=c.start_date===fortnightStart;
+                      const today=todaySyd();
+                      const isCurrent=c.start_date<=today&&c.end_date>=today;
+                      return(
+                        <div key={c.id} onClick={()=>selectCycle(c.start_date)} style={{
+                          display:"flex",alignItems:"center",justifyContent:"space-between",
+                          padding:"0.5rem 0.75rem",borderRadius:"0.5rem",cursor:"pointer",
+                          background:isSel?BRAND:"#f8fafc",
+                          color:isSel?"white":"#334155",
+                          border:isSel?"1px solid "+BRAND:isCurrent?"1px solid #fbbf24":"1px solid transparent"
+                        }}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:"0.85rem",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+                              <span>{fmtCycleName(c.start_date)}</span>
+                              {isCurrent&&!isSel&&<span style={{fontSize:"0.6rem",fontWeight:700,padding:"1px 6px",borderRadius:999,background:"#fef3c7",color:"#92400e"}}>NOW</span>}
+                              {isCurrent&&isSel&&<span style={{fontSize:"0.6rem",fontWeight:700,padding:"1px 6px",borderRadius:999,background:"rgba(255,255,255,0.25)",color:"white"}}>NOW</span>}
+                            </div>
+                            <div style={{fontSize:"0.7rem",opacity:0.85,marginTop:1}}>{fmtCycleRange(c.start_date)}</div>
+                          </div>
+                          <button onClick={e=>{e.stopPropagation();toggleLock(c);}} title={c.is_locked?"Unlock this cycle":"Lock this cycle"} style={{
+                            background:c.is_locked?(isSel?"rgba(255,255,255,0.25)":"#fee2e2"):(isSel?"rgba(255,255,255,0.25)":"#dcfce7"),
+                            color:c.is_locked?(isSel?"white":"#dc2626"):(isSel?"white":"#16a34a"),
+                            border:"none",borderRadius:6,padding:"3px 8px",fontSize:"0.7rem",fontWeight:600,cursor:"pointer",flexShrink:0,marginLeft:8
+                          }}>{c.is_locked?"🔒":"🔓"}</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+              }
+            </div>}
+
+            {/* Employees */}
             <div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
               <div style={{fontWeight:600,color:"#334155",marginBottom:12}}>👥 Employees</div>
               {canManage&&<div style={{display:"flex",gap:8,marginBottom:12}}><input value={newEmp} onChange={e=>setNewEmp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addEmp()} placeholder="Employee name..." style={{flex:1,border:"1px solid #e2e8f0",borderRadius:"0.5rem",padding:"0.4rem 0.75rem",fontSize:"0.8rem",outline:"none"}}/><button onClick={addEmp} style={{background:BRAND,color:"white",border:"none",borderRadius:"0.5rem",padding:"0.4rem 0.75rem",fontWeight:700,cursor:"pointer",fontSize:"1rem"}}>+</button></div>}
@@ -1208,20 +1397,27 @@ function App(){
                 </div>
               ))}
             </div>
-            {canManage&&<div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
-              <div style={{fontWeight:600,color:"#334155",marginBottom:12}}>📅 Fortnight Period</div>
-              <label style={{fontSize:"0.75rem",color:"#64748b",display:"block",marginBottom:4}}>Start Date</label>
-              <input type="date" value={fortnightStart} onChange={e=>setFS(e.target.value)} style={{width:"100%",border:"1px solid #e2e8f0",borderRadius:"0.5rem",padding:"0.4rem 0.75rem",fontSize:"0.875rem",boxSizing:"border-box",outline:"none"}}/>
-              {fortnightStart&&<p style={{fontSize:"0.75rem",color:"#94a3b8",marginTop:8}}>Ends: {fmtShort(fortnightStart,13)}</p>}
-            </div>}
           </div>
 
           {/* Right Panel */}
           <div>
+            {/* Lock banner */}
+            {selectedCycle&&isLocked&&<div style={{background:"#fef3c7",border:"1px solid #fde68a",borderRadius:"0.75rem",padding:"0.75rem 1rem",marginBottom:12,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <span style={{fontSize:"1.25rem"}}>🔒</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,color:"#92400e",fontSize:"0.875rem"}}>{fmtCycleName(selectedCycle.start_date)} is locked</div>
+                <div style={{fontSize:"0.75rem",color:"#92400e",opacity:0.85}}>{fmtCycleRange(selectedCycle.start_date)} · Timesheets, expenses & medical certs are read-only.</div>
+              </div>
+              {canManage&&<button onClick={()=>toggleLock(selectedCycle)} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"#16a34a",color:"white",fontWeight:600,fontSize:"0.8rem",border:"none",cursor:"pointer"}}>🔓 Unlock</button>}
+            </div>}
+
             {view==="timesheet"&&!selectedEmp&&<div style={{background:"white",borderRadius:"1rem",padding:"3rem",textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}><div style={{fontSize:"2.5rem",marginBottom:8}}>👈</div><p>Select an employee</p></div>}
             {view==="timesheet"&&selectedEmp&&(
               <div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
-                <div style={{fontWeight:600,color:BRAND,marginBottom:16,fontSize:"1rem"}}>📋 Timesheet — <span style={{color:"#1e293b"}}>{selectedEmp}</span></div>
+                <div style={{fontWeight:600,color:BRAND,marginBottom:16,fontSize:"1rem",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+                  <span>📋 Timesheet — <span style={{color:"#1e293b"}}>{selectedEmp}</span></span>
+                  {selectedCycle&&!isLocked&&canManage&&<button onClick={()=>toggleLock(selectedCycle)} style={{padding:"0.3rem 0.75rem",borderRadius:"0.5rem",background:"#fee2e2",color:"#dc2626",fontWeight:600,fontSize:"0.75rem",border:"none",cursor:"pointer"}}>🔒 Lock this cycle</button>}
+                </div>
                 {getTS(selectedEmp).map((day,idx)=>{
                   const we=isWE(idx,fortnightStart);const editable=canEdit(selectedEmp)&&!we;
                   const imported=day.decimalHours&&parseFloat(day.decimalHours)>0&&day.status==="Worked";
@@ -1255,7 +1451,7 @@ function App(){
                   {[{key:"expenses",label:"💰 Expenses"},{key:"medical",label:"🏥 Medical Certificates"}].map(({key,label})=>(
                     <div key={key} style={{border:"1px solid #e2e8f0",borderRadius:"0.75rem",overflow:"hidden"}}>
                       <button onClick={()=>setExpanded(expanded===key?null:key)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0.75rem 1rem",background:"#f8fafc",border:"none",cursor:"pointer",fontSize:"0.875rem",fontWeight:600,color:"#334155"}}>
-                        <span>{label}</span><span style={{color:"#94a3b8"}}>{expanded===key?"▲":"▼"}</span>
+                        <span>{label}{isLocked&&<span style={{marginLeft:8,fontSize:"0.7rem",fontWeight:600,padding:"1px 6px",borderRadius:6,background:"#fef3c7",color:"#92400e"}}>🔒 locked</span>}</span><span style={{color:"#94a3b8"}}>{expanded===key?"▲":"▼"}</span>
                       </button>
                       {expanded===key&&<div style={{padding:"0 1rem 1rem"}}>{key==="expenses"?<Expenses empName={selectedEmp} fortnightStart={fortnightStart} canEdit={canEdit(selectedEmp)}/>:<Medical empName={selectedEmp} fortnightStart={fortnightStart} canEdit={canEdit(selectedEmp)}/>}</div>}
                     </div>
@@ -1268,7 +1464,7 @@ function App(){
                 {employees.length===0?<div style={{background:"white",borderRadius:"1rem",padding:"3rem",textAlign:"center",color:"#94a3b8"}}>No employees added yet</div>:<>
                   {(()=>{let gt=0,ts=0,ta=0,tp=0,tw=0;employees.forEach(emp=>{const{td,sk,al,ph}=summ(emp.name);gt+=td;ts+=sk;ta+=al;tp+=ph;getTS(emp.name).forEach(d=>{if(d.status==="Worked")tw++;});});
                   return(<div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)",borderLeft:"4px solid "+BRAND}}>
-                    <div style={{fontWeight:700,fontSize:"1rem",color:"#1e293b",marginBottom:4}}>📊 Fortnight Summary — All Staff</div>
+                    <div style={{fontWeight:700,fontSize:"1rem",color:"#1e293b",marginBottom:4}}>📊 Fortnight Summary — All Staff{selectedCycle?<span style={{fontSize:"0.75rem",fontWeight:500,color:"#64748b",marginLeft:8}}>{fmtCycleName(selectedCycle.start_date)}{isLocked?" 🔒":""}</span>:null}</div>
                     {fortnightStart&&<div style={{fontSize:"0.75rem",color:"#64748b",marginBottom:12}}>{fmtShort(fortnightStart)} – {fmtShort(fortnightStart,13)} · {employees.length} employee{employees.length!==1?"s":""}</div>}
                     <div className="app-stats-3" style={{marginBottom:8}}>{[{v:gt.toFixed(2),l:"Total Hours",s:"all staff",bg:"#fee2e2",c:BRAND},{v:(gt/Math.max(employees.length,1)).toFixed(2),l:"Avg Hours",s:"per employee",bg:"#fef3c7",c:"#d97706"},{v:tw,l:"Days Worked",s:"across all",bg:"#eff6ff",c:"#3b82f6"}].map(({v,l,s,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.4rem",fontWeight:800,color:c}}>{v}</div><div style={{fontSize:"0.75rem",fontWeight:600,color:c}}>{l}</div><div style={{fontSize:"0.65rem",color:c,opacity:0.7}}>{s}</div></div>)}</div>
                     <div className="app-stats-3">{[{v:tp,l:"Public Holidays",bg:"#fef9c3",c:"#b45309"},{v:ta,l:"Annual Leave",bg:"#f0fdf4",c:"#16a34a"},{v:ts,l:"Sick Leave",bg:"#fff1f2",c:"#e11d48"}].map(({v,l,bg,c})=><div key={l} style={{background:bg,borderRadius:"0.75rem",padding:"0.75rem",textAlign:"center"}}><div style={{fontSize:"1.4rem",fontWeight:800,color:c}}>{v}</div><div style={{fontSize:"0.75rem",fontWeight:600,color:c}}>{l}</div></div>)}</div>
@@ -1290,7 +1486,7 @@ function App(){
             )}
           </div>
         </div>
-      )}
+      </>)}
     </div>
   );
 }
