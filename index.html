@@ -1239,6 +1239,45 @@ function App(){
     const{data:all}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
     setCycles(all||[]);
   };
+  // Copy work pattern (day statuses only) from the cycle immediately before `cycle` into `cycle`.
+  // Only operates on unlocked cycles. Overwrites existing timesheet rows for that cycle after a confirm.
+  const copyFromPreviousCycle=async(cycle)=>{
+    if(cycle.is_locked){alert("This cycle is locked. Unlock it first to copy a pattern into it.");return;}
+    const prevStart=addDays(cycle.start_date,-14);
+    const prev=cycles.find(c=>c.start_date===prevStart);
+    if(!prev){alert("There's no previous cycle to copy from.");return;}
+    // Fetch previous cycle's timesheets
+    const{data:prevSheets}=await sb.from("timesheets").select("employee_name,days").eq("fortnight_start",prev.start_date);
+    if(!prevSheets||!prevSheets.length){alert("The previous cycle ("+fmtCycleName(prev.start_date)+") has no timesheet data to copy.");return;}
+    // Fetch existing timesheets for the target cycle (so we can warn about overwrite)
+    const{data:existingSheets}=await sb.from("timesheets").select("employee_name").eq("fortnight_start",cycle.start_date);
+    const existingNames=(existingSheets||[]).map(s=>s.employee_name);
+    let msg="Copy the work pattern (statuses only — Worked / Day Off / Sick Leave / etc.) from "+fmtCycleName(prev.start_date)+" into "+fmtCycleName(cycle.start_date)+"?\n\nTimes, breaks and hours will NOT be copied — employees will fill those in.";
+    if(existingNames.length>0){
+      msg+="\n\n⚠️ "+existingNames.length+" employee(s) already have data in "+fmtCycleName(cycle.start_date)+" — their entries will be OVERWRITTEN.";
+    }
+    if(!confirm(msg))return;
+    // Build new timesheet rows: for each prev row, copy statuses, but recompute weekend status against the new cycle's dates and blank out times.
+    const newRows=prevSheets.map(prevRow=>{
+      const prevDays=safeSh(prevRow.days);
+      const newDays=Array.from({length:14},(_,i)=>{
+        const we=isWE(i,cycle.start_date);
+        if(we)return{...defDay(true),dayIndex:i};
+        const prevStatus=prevDays[i]?.status||"Worked";
+        // If the previous day was a Weekend (because the cycle alignment differed — shouldn't happen with fixed Mon-anchored fortnights but be safe), fall back to Worked.
+        const status=prevStatus==="Weekend"?"Worked":prevStatus;
+        return{status,start:"",end:"",breakMins:"",decimalHours:"",dayIndex:i};
+      });
+      return{employee_name:prevRow.employee_name,fortnight_start:cycle.start_date,days:newDays,updated_at:new Date().toISOString()};
+    });
+    // Upsert all
+    await sb.from("timesheets").upsert(newRows,{onConflict:"employee_name,fortnight_start"});
+    // If the cycle being copied INTO is the currently selected one, refresh local cache
+    if(cycle.start_date===fortnightStart){
+      const tsMap={};newRows.forEach(r=>tsMap[r.employee_name]=r.days);setTimesheets(t=>({...t,...tsMap}));
+    }
+    alert("✅ Copied pattern from "+fmtCycleName(prev.start_date)+" → "+fmtCycleName(cycle.start_date)+" for "+newRows.length+" employee(s).");
+  };
   // First-time anchor save
   const saveAnchor=async(anchor)=>{
     await sb.from("settings").upsert({key:"cycle_anchor",value:anchor});
@@ -1370,6 +1409,11 @@ function App(){
                             </div>
                             <div style={{fontSize:"0.7rem",opacity:0.85,marginTop:1}}>{fmtCycleRange(c.start_date)}</div>
                           </div>
+                          {!c.is_locked&&cycles.some(p=>p.start_date===addDays(c.start_date,-14))&&<button onClick={e=>{e.stopPropagation();copyFromPreviousCycle(c);}} title={"Copy work pattern (statuses only) from "+fmtCycleName(addDays(c.start_date,-14))} style={{
+                            background:isSel?"rgba(255,255,255,0.25)":"#eff6ff",
+                            color:isSel?"white":"#1d4ed8",
+                            border:"none",borderRadius:6,padding:"3px 8px",fontSize:"0.7rem",fontWeight:600,cursor:"pointer",flexShrink:0,marginLeft:8
+                          }}>🔁</button>}
                           <button onClick={e=>{e.stopPropagation();toggleLock(c);}} title={c.is_locked?"Unlock this cycle":"Lock this cycle"} style={{
                             background:c.is_locked?(isSel?"rgba(255,255,255,0.25)":"#fee2e2"):(isSel?"rgba(255,255,255,0.25)":"#dcfce7"),
                             color:c.is_locked?(isSel?"white":"#dc2626"):(isSel?"white":"#16a34a"),
