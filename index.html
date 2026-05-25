@@ -1034,10 +1034,30 @@ function EntriesByDay({employees,fortnightStart,getTimesheet,updateDay,canEditFo
   const dayTabs=Array.from({length:14},(_,i)=>i);
 
   // Build the rows: one per employee for the selected day
+  // Sort order:
+  //  1. Worked with an In time → earliest In first
+  //  2. Worked but no In time yet (e.g. imported decimal-hours only, or not yet filled) → after timed entries
+  //  3. Public Holiday → Annual Leave → Sick Leave → Day Off → Weekend (not-working last)
+  //  4. Name as alphabetical tiebreaker
+  const statusOrder={"Worked":0,"Public Holiday":1,"Annual Leave":2,"Sick Leave":3,"Day Off":4,"Weekend":5};
+  const toMin=t=>{if(!t)return null;const[h,m]=t.split(":").map(Number);if(isNaN(h)||isNaN(m))return null;return h*60+m;};
   const rows=employees.map(emp=>{
     const sheet=getTimesheet(emp.name);
     const day=sheet[dayIdx]||defDay(isWE(dayIdx,fortnightStart));
     return{empName:emp.name,day};
+  }).sort((a,b)=>{
+    const sa=statusOrder[a.day.status]??99;
+    const sb=statusOrder[b.day.status]??99;
+    if(sa!==sb)return sa-sb;
+    // Within "Worked", sort by start time — entries with no start time go to the bottom of the worked group
+    if(a.day.status==="Worked"){
+      const ta=toMin(a.day.start);
+      const tb=toMin(b.day.start);
+      if(ta!==null&&tb!==null&&ta!==tb)return ta-tb;
+      if(ta!==null&&tb===null)return -1;
+      if(ta===null&&tb!==null)return 1;
+    }
+    return a.empName.localeCompare(b.empName);
   });
 
   // Aggregate stats for this day
