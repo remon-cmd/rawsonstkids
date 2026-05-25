@@ -138,6 +138,7 @@ const timeSyd=()=>nowSyd().toLocaleTimeString("en-AU",{hour:"2-digit",minute:"2-
 const fmtDate=(fs,off=0)=>{if(!fs)return"—";const d=new Date(fs+"T12:00:00");d.setDate(d.getDate()+off);return d.toLocaleDateString("en-AU",{timeZone:SYD,day:"numeric",month:"long",year:"numeric"});};
 const fmtShort=(fs,off=0)=>{if(!fs)return"—";const d=new Date(fs+"T12:00:00");d.setDate(d.getDate()+off);return d.toLocaleDateString("en-AU",{timeZone:SYD,day:"numeric",month:"short",year:"numeric"});};
 const fmtDay=(i,fs)=>{if(!fs)return"Day "+(i+1);const d=new Date(fs+"T12:00:00");d.setDate(d.getDate()+i);return d.toLocaleDateString("en-AU",{timeZone:SYD,weekday:"short",day:"numeric",month:"short"});};
+const fmtDayLong=(i,fs)=>{if(!fs)return"Day "+(i+1);const d=new Date(fs+"T12:00:00");d.setDate(d.getDate()+i);return d.toLocaleDateString("en-AU",{timeZone:SYD,weekday:"long",day:"numeric",month:"long"});};
 const fmtGen=()=>nowSyd().toLocaleDateString("en-AU",{timeZone:SYD,day:"numeric",month:"short",year:"numeric"});
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -156,8 +157,6 @@ const sCol=s=>({"Worked":"#eff6ff;#bfdbfe","Sick Leave":"#fff1f2;#fecdd3","Annua
 const sBadge=s=>({"Worked":{background:"#dbeafe",color:"#1d4ed8"},"Sick Leave":{background:"#fee2e2",color:"#dc2626"},"Annual Leave":{background:"#dcfce7",color:"#16a34a"},"Day Off":{background:"#f3f4f6",color:"#9ca3af"},"Public Holiday":{background:"#fef9c3",color:"#b45309"},"Weekend":{background:"#e2e8f0",color:"#64748b"}}[s]||{background:"#f3f4f6",color:"#9ca3af"});
 
 // ── Payroll Cycle Helpers ─────────────────────────────────────
-// Given an anchor (the Monday start of cycle #1) and today's date, return how many fortnights to generate.
-// We always generate enough to cover from anchor up to (today + 14 days), so the next cycle is ready.
 const addDays=(dateStr,days)=>{const d=new Date(dateStr+"T12:00:00");d.setDate(d.getDate()+days);return toKey(d);};
 const daysBetween=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/86400000);
 const fmtCycleRange=fs=>{if(!fs)return"";const d1=new Date(fs+"T12:00:00");const d2=new Date(fs+"T12:00:00");d2.setDate(d2.getDate()+13);const a=d1.toLocaleDateString("en-AU",{timeZone:SYD,day:"numeric",month:"short"});const b=d2.toLocaleDateString("en-AU",{timeZone:SYD,day:"numeric",month:"short",year:"numeric"});return a+" → "+b;};
@@ -1014,6 +1013,153 @@ function PrintPreview({employees,fortnightStart,getTimesheet,getExpenses,getMedC
   );
 }
 
+// ── Entries by Day View ───────────────────────────────────────
+// Shows the same fortnight timesheet data, but pivoted: pick a day (1 of 14 in the cycle),
+// and see every employee's entry for that day. Admin/Director can edit inline.
+function EntriesByDay({employees,fortnightStart,getTimesheet,updateDay,canEditFor,isLocked}){
+  // Default to today if it falls in the cycle, else day 0
+  const defaultIdx=(()=>{
+    if(!fortnightStart)return 0;
+    const today=todaySyd();
+    const diff=daysBetween(fortnightStart,today);
+    if(diff>=0&&diff<14)return diff;
+    return 0;
+  })();
+  const[dayIdx,setDayIdx]=useState(defaultIdx);
+
+  // Recompute default if cycle changes
+  useEffect(()=>{setDayIdx(defaultIdx);},[fortnightStart]);
+
+  // Build the 14 day tabs
+  const dayTabs=Array.from({length:14},(_,i)=>i);
+
+  // Build the rows: one per employee for the selected day
+  const rows=employees.map(emp=>{
+    const sheet=getTimesheet(emp.name);
+    const day=sheet[dayIdx]||defDay(isWE(dayIdx,fortnightStart));
+    return{empName:emp.name,day};
+  });
+
+  // Aggregate stats for this day
+  const stats=(()=>{
+    let totalHrs=0,worked=0,sick=0,annual=0,ph=0,off=0;
+    rows.forEach(({day})=>{
+      if(day.status==="Sick Leave")sick++;
+      else if(day.status==="Annual Leave")annual++;
+      else if(day.status==="Public Holiday")ph++;
+      else if(day.status==="Day Off")off++;
+      else if(day.status==="Worked"){
+        worked++;
+        if(day.start&&day.end){const m=calcH(day.start,day.end,day.breakMins);if(m!=null)totalHrs+=m/60;}
+        else if(day.decimalHours)totalHrs+=parseFloat(day.decimalHours)||0;
+      }
+    });
+    return{totalHrs,worked,sick,annual,ph,off};
+  })();
+
+  const dayIsWE=isWE(dayIdx,fortnightStart);
+  const dayLabel=fmtDayLong(dayIdx,fortnightStart);
+
+  return(
+    <div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
+      <div style={{fontWeight:600,color:BRAND,marginBottom:12,fontSize:"1rem",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <span>📆 Entries by Day</span>
+        <span style={{fontSize:"0.75rem",color:"#1e293b",fontWeight:500}}>— {dayLabel}</span>
+        {dayIsWE&&<span style={{fontSize:"0.7rem",fontWeight:700,padding:"2px 8px",borderRadius:999,background:"#e2e8f0",color:"#64748b"}}>Weekend</span>}
+        {isLocked&&<span style={{fontSize:"0.7rem",fontWeight:700,padding:"2px 8px",borderRadius:999,background:"#fef3c7",color:"#92400e"}}>🔒 locked</span>}
+      </div>
+
+      {/* Day picker — 14 tabs, week 1 then week 2 */}
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14}}>
+        {[0,7].map(weekStart=>(
+          <div key={weekStart} style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            <span style={{fontSize:"0.65rem",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.05em",width:46,alignSelf:"center"}}>Wk {weekStart===0?1:2}</span>
+            {dayTabs.slice(weekStart,weekStart+7).map(i=>{
+              const sel=i===dayIdx;
+              const we=isWE(i,fortnightStart);
+              const today=todaySyd();
+              const isToday=fortnightStart&&addDays(fortnightStart,i)===today;
+              return(
+                <button key={i} onClick={()=>setDayIdx(i)} style={{
+                  padding:"4px 10px",borderRadius:"0.5rem",fontSize:"0.75rem",fontWeight:sel?700:500,
+                  border:"1px solid "+(sel?BRAND:isToday?"#fbbf24":"#e2e8f0"),
+                  background:sel?BRAND:we?"#f1f5f9":"white",
+                  color:sel?"white":we?"#94a3b8":"#475569",
+                  cursor:"pointer",flex:1,minWidth:64,position:"relative"
+                }}>
+                  {fmtDay(i,fortnightStart).replace(/,/g,"")}
+                  {isToday&&!sel&&<span style={{position:"absolute",top:-4,right:-4,width:8,height:8,background:"#fbbf24",borderRadius:"50%",border:"1px solid white"}}></span>}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Day-level stats */}
+      <div className="app-stats-4" style={{marginBottom:14,gap:8}}>
+        {[
+          {v:stats.totalHrs.toFixed(2),l:"Total hrs",bg:"#fee2e2",c:BRAND},
+          {v:stats.worked,l:"Worked",bg:"#eff6ff",c:"#3b82f6"},
+          {v:stats.sick+stats.annual+stats.ph,l:"On leave",bg:"#fef9c3",c:"#b45309"},
+          {v:stats.off,l:"Off",bg:"#f3f4f6",c:"#94a3b8"}
+        ].map(({v,l,bg,c})=>(
+          <div key={l} style={{background:bg,borderRadius:"0.6rem",padding:"0.5rem",textAlign:"center"}}>
+            <div style={{fontSize:"1.1rem",fontWeight:700,color:c}}>{v}</div>
+            <div style={{fontSize:"0.65rem",color:c,marginTop:1}}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Employee rows for the selected day */}
+      {rows.length===0
+        ?<div style={{textAlign:"center",color:"#94a3b8",padding:"2rem 0",fontSize:"0.875rem"}}>No employees yet</div>
+        :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {rows.map(({empName,day})=>{
+            const editable=canEditFor(empName)&&!dayIsWE;
+            const imported=day.decimalHours&&parseFloat(day.decimalHours)>0&&day.status==="Worked";
+            const[bg,bc]=sCol(dayIsWE?"Weekend":day.status);
+            const sb2=sBadge(dayIsWE?"Weekend":day.status);
+            return(
+              <div key={empName} style={{border:"1px solid "+bc,borderRadius:"0.75rem",padding:10,background:bg,opacity:dayIsWE?0.65:1}}>
+                <div className="app-day-row">
+                  <span style={{fontSize:"0.8rem",fontWeight:600,color:"#1e293b",width:"8rem",flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{empName}</span>
+
+                  {dayIsWE
+                    ?<span style={{...sb2,fontSize:"0.75rem",fontWeight:500,padding:"2px 8px",borderRadius:6}}>Weekend</span>
+                    :editable
+                      ?<select value={day.status} onChange={e=>updateDay(empName,dayIdx,"status",e.target.value)} style={{...sb2,fontSize:"0.75rem",fontWeight:500,padding:"2px 8px",borderRadius:6,border:"none",cursor:"pointer"}}>{DAY_STATUS.filter(s=>s!=="Weekend").map(s=><option key={s}>{s}</option>)}</select>
+                      :<span style={{...sb2,fontSize:"0.75rem",fontWeight:500,padding:"2px 8px",borderRadius:6}}>{day.status}</span>
+                  }
+
+                  {day.status==="Worked"&&!dayIsWE&&(<>
+                    {imported?(
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontSize:"0.75rem",fontWeight:600,padding:"2px 8px",borderRadius:6,background:"#dbeafe",color:"#1d4ed8",border:"1px solid #bfdbfe"}}>📊 {(()=>{const m=calcH(day.start,day.end,day.breakMins);return m!=null?toDec(m)+"h | "+toHM(m):decToHM(day.decimalHours);})()}</span>
+                        {day.start&&<span style={{fontSize:"0.7rem",color:"#94a3b8"}}>In: <span style={{color:"#334155",fontWeight:500}}>{day.start}</span></span>}
+                        {day.end&&<span style={{fontSize:"0.7rem",color:"#94a3b8"}}>Out: <span style={{color:"#334155",fontWeight:500}}>{day.end}</span></span>}
+                        {day.breakMins&&<span style={{fontSize:"0.7rem",padding:"2px 6px",borderRadius:6,background:"#fff7ed",color:"#ea580c",border:"1px solid #fed7aa"}}>☕ {day.breakMins} min</span>}
+                        {editable&&<button onClick={()=>updateDay(empName,dayIdx,"decimalHours","")} style={{marginLeft:"auto",fontSize:"0.7rem",background:"none",border:"none",cursor:"pointer",color:"#94a3b8"}}>Edit manually</button>}
+                      </div>
+                    ):(<>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:"0.7rem",color:"#94a3b8"}}>In</span><input type="time" value={day.start} disabled={!editable} onChange={e=>updateDay(empName,dayIdx,"start",e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:6,padding:"2px 6px",fontSize:"0.75rem",outline:"none",background:editable?"white":"#f8fafc"}}/></div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:"0.7rem",color:"#94a3b8"}}>Out</span><input type="time" value={day.end} disabled={!editable} onChange={e=>updateDay(empName,dayIdx,"end",e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:6,padding:"2px 6px",fontSize:"0.75rem",outline:"none",background:editable?"white":"#f8fafc"}}/></div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:"0.7rem",color:"#94a3b8"}}>Break</span><input type="number" min="30" max="120" placeholder="mins" value={day.breakMins} disabled={!editable} onChange={e=>updateDay(empName,dayIdx,"breakMins",e.target.value)} style={{border:"1px solid #e2e8f0",borderRadius:6,padding:"2px 6px",fontSize:"0.75rem",width:56,outline:"none",background:editable?"white":"#f8fafc"}}/></div>
+                      {(()=>{const m=calcH(day.start,day.end,day.breakMins);return m!=null?<span style={{marginLeft:"auto",fontSize:"0.75rem",fontWeight:600,padding:"2px 8px",borderRadius:6,background:"#fee2e2",color:BRAND}}>{toHM(m)} / {toDec(m)}h</span>:null;})()}
+                    </>)}
+                  </>)}
+
+                  {day.status!=="Worked"&&!dayIsWE&&<span style={{marginLeft:"auto",...sb2,fontSize:"0.75rem",fontWeight:500,padding:"2px 8px",borderRadius:6}}>{day.status}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      }
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────
 function App(){
   const[session,setSession]=useState(null);
@@ -1023,9 +1169,9 @@ function App(){
   const[timesheets,setTimesheets]=useState({});
   const[expCache,setExpCache]=useState({});
   const[mcCache,setMcCache]=useState({});
-  const[fortnightStart,setFortnightStart]=useState(""); // == selected cycle start
-  const[cycles,setCycles]=useState([]);                  // all payroll cycles, newest first
-  const[cycleAnchor,setCycleAnchor]=useState("");        // start date of cycle #1
+  const[fortnightStart,setFortnightStart]=useState("");
+  const[cycles,setCycles]=useState([]);
+  const[cycleAnchor,setCycleAnchor]=useState("");
   const[showCycleSetup,setShowCycleSetup]=useState(false);
   const[view,setView]=useState("dashboard");
   const[delConfirm,setDelConfirm]=useState(null);
@@ -1036,26 +1182,21 @@ function App(){
   const[expanded,setExpanded]=useState(null);
   const[loading,setLoading]=useState(true);
 
-  // Selected cycle object (or null)
   const selectedCycle=cycles.find(c=>c.start_date===fortnightStart)||null;
   const isLocked=!!(selectedCycle&&selectedCycle.is_locked);
 
-  // ── Cycle generation ─────────────────────────────────────────
-  // Ensures payroll_cycles has rows from anchor up to today+14 days (i.e. next cycle ready).
   const generateCyclesFromAnchor=async(anchor)=>{
     if(!anchor)return[];
-    // Determine target end: today + 14 days
     const today=todaySyd();
     const dayDiff=daysBetween(anchor,today);
     if(dayDiff<0){
-      // anchor is in the future; just generate cycle #1
       const{data:existing}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
       const have=new Set((existing||[]).map(c=>c.start_date));
       if(!have.has(anchor)){
         await sb.from("payroll_cycles").insert({cycle_number:1,start_date:anchor,end_date:addDays(anchor,13),is_locked:false});
       }
     }else{
-      const fortnightsNeeded=Math.floor(dayDiff/14)+2; // +2 = current + next
+      const fortnightsNeeded=Math.floor(dayDiff/14)+2;
       const{data:existing}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
       const have=new Set((existing||[]).map(c=>c.start_date));
       const toInsert=[];
@@ -1073,13 +1214,12 @@ function App(){
     return all||[];
   };
 
-  // Pick which cycle should be selected by default (the one containing today, or the most recent)
   const pickDefaultCycle=(allCycles)=>{
     if(!allCycles||!allCycles.length)return"";
     const today=todaySyd();
     const current=allCycles.find(c=>c.start_date<=today&&c.end_date>=today);
     if(current)return current.start_date;
-    return allCycles[0].start_date; // newest if today is past all of them
+    return allCycles[0].start_date;
   };
 
   const loadData=async()=>{
@@ -1088,22 +1228,18 @@ function App(){
       const{data:emps}=await sb.from("employees").select("*").order("name");setEmployees(emps||[]);
       const{data:settings}=await sb.from("settings").select("key,value");
       const sp={};(settings||[]).forEach(s=>sp[s.key]=s.value);
-
       const anchor=sp["cycle_anchor"]||"";
       setCycleAnchor(anchor);
-
       let allCycles=[];
       if(anchor){
         allCycles=await generateCyclesFromAnchor(anchor);
         setCycles(allCycles);
-        // Pick selected cycle: existing fortnight_start setting if it matches a cycle, else default
         let sel=sp["fortnight_start"]||"";
         if(!allCycles.find(c=>c.start_date===sel)){
           sel=pickDefaultCycle(allCycles);
           if(sel)await sb.from("settings").upsert({key:"fortnight_start",value:sel});
         }
         setFortnightStart(sel);
-
         if(sel){
           const{data:ts}=await sb.from("timesheets").select("*").eq("fortnight_start",sel);
           const tsMap={};(ts||[]).forEach(t=>tsMap[t.employee_name]=safeSh(t.days));setTimesheets(tsMap);
@@ -1113,7 +1249,6 @@ function App(){
           const mcMap={};(mc||[]).forEach(m=>mcMap[m.employee_name]=m.data||[]);setMcCache(mcMap);
         }
       }else{
-        // No anchor set yet — backward compat: if fortnight_start is set, treat that as a one-off
         const fs=sp["fortnight_start"]||"";
         setFortnightStart(fs);
         setCycles([]);
@@ -1134,23 +1269,18 @@ function App(){
   useEffect(()=>{if(session)setView("dashboard");},[session]);
   useEffect(()=>{if(session?.role==="educator")setSelectedEmp(session.empName);},[session]);
 
-  // Open setup modal automatically if admin logs in with no anchor
   useEffect(()=>{
     if(!loading&&session?.role==="admin"&&!cycleAnchor){
-      // small delay so the dashboard mounts first
       const t=setTimeout(()=>setShowCycleSetup(true),300);
       return()=>clearTimeout(t);
     }
   },[loading,session,cycleAnchor]);
 
-  // ── App-level message notifications ─────────────────────────
   const[unread,setUnread]=useState(0);
   useEffect(()=>{
     if(!session)return;
     const myName=session.role==="educator"?session.empName:session.role==="admin"?"Admin":"Director";
-
     const permTimer=setTimeout(()=>{requestNotificationPermission();},2000);
-
     const sub=sb.channel("app_msg_notifs")
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"messages"},payload=>{
         const m=payload.new;
@@ -1188,12 +1318,10 @@ function App(){
         }
       })
       .subscribe();
-
     const onFocus=()=>setUnread(0);
     const onVisible=()=>{if(!document.hidden)setUnread(0);};
     window.addEventListener("focus",onFocus);
     document.addEventListener("visibilitychange",onVisible);
-
     return()=>{
       clearTimeout(permTimer);
       sb.removeChannel(sub);
@@ -1211,13 +1339,12 @@ function App(){
   const delEmp=async n=>{await sb.from("employees").delete().eq("name",n);if(selectedEmp===n)setSelectedEmp(null);setDelConfirm(null);await loadData();};
   const getTS=emp=>timesheets[emp]||makeFN(fortnightStart);
   const updDay=async(emp,idx,field,val)=>{
-    if(isLocked)return; // safety net
+    if(isLocked)return;
     const sheet=[...getTS(emp)];sheet[idx]={...sheet[idx],[field]:val};
     if(field==="status"&&val!=="Worked")sheet[idx]={...sheet[idx],start:"",end:"",breakMins:"",decimalHours:""};
     setTimesheets(t=>({...t,[emp]:sheet}));
     if(fortnightStart)await sb.from("timesheets").upsert({employee_name:emp,fortnight_start:fortnightStart,days:sheet,updated_at:new Date().toISOString()},{onConflict:"employee_name,fortnight_start"});
   };
-  // Select a cycle (changes fortnight_start setting + reloads timesheet/expenses/med-certs caches)
   const selectCycle=async(startDate)=>{
     setFortnightStart(startDate);
     await sb.from("settings").upsert({key:"fortnight_start",value:startDate});
@@ -1228,7 +1355,6 @@ function App(){
     const{data:mc}=await sb.from("medical_certs").select("*").eq("fortnight_start",startDate);
     const mcMap={};(mc||[]).forEach(m=>mcMap[m.employee_name]=m.data||[]);setMcCache(mcMap);
   };
-  // Lock/unlock a cycle
   const toggleLock=async(cycle)=>{
     const newLocked=!cycle.is_locked;
     await sb.from("payroll_cycles").update({
@@ -1239,17 +1365,13 @@ function App(){
     const{data:all}=await sb.from("payroll_cycles").select("*").order("start_date",{ascending:false});
     setCycles(all||[]);
   };
-  // Copy work pattern (day statuses only) from the cycle immediately before `cycle` into `cycle`.
-  // Only operates on unlocked cycles. Overwrites existing timesheet rows for that cycle after a confirm.
   const copyFromPreviousCycle=async(cycle)=>{
     if(cycle.is_locked){alert("This cycle is locked. Unlock it first to copy a pattern into it.");return;}
     const prevStart=addDays(cycle.start_date,-14);
     const prev=cycles.find(c=>c.start_date===prevStart);
     if(!prev){alert("There's no previous cycle to copy from.");return;}
-    // Fetch previous cycle's timesheets
     const{data:prevSheets}=await sb.from("timesheets").select("employee_name,days").eq("fortnight_start",prev.start_date);
     if(!prevSheets||!prevSheets.length){alert("The previous cycle ("+fmtCycleName(prev.start_date)+") has no timesheet data to copy.");return;}
-    // Fetch existing timesheets for the target cycle (so we can warn about overwrite)
     const{data:existingSheets}=await sb.from("timesheets").select("employee_name").eq("fortnight_start",cycle.start_date);
     const existingNames=(existingSheets||[]).map(s=>s.employee_name);
     let msg="Copy the work pattern (statuses only — Worked / Day Off / Sick Leave / etc.) from "+fmtCycleName(prev.start_date)+" into "+fmtCycleName(cycle.start_date)+"?\n\nTimes, breaks and hours will NOT be copied — employees will fill those in.";
@@ -1257,28 +1379,23 @@ function App(){
       msg+="\n\n⚠️ "+existingNames.length+" employee(s) already have data in "+fmtCycleName(cycle.start_date)+" — their entries will be OVERWRITTEN.";
     }
     if(!confirm(msg))return;
-    // Build new timesheet rows: for each prev row, copy statuses, but recompute weekend status against the new cycle's dates and blank out times.
     const newRows=prevSheets.map(prevRow=>{
       const prevDays=safeSh(prevRow.days);
       const newDays=Array.from({length:14},(_,i)=>{
         const we=isWE(i,cycle.start_date);
         if(we)return{...defDay(true),dayIndex:i};
         const prevStatus=prevDays[i]?.status||"Worked";
-        // If the previous day was a Weekend (because the cycle alignment differed — shouldn't happen with fixed Mon-anchored fortnights but be safe), fall back to Worked.
         const status=prevStatus==="Weekend"?"Worked":prevStatus;
         return{status,start:"",end:"",breakMins:"",decimalHours:"",dayIndex:i};
       });
       return{employee_name:prevRow.employee_name,fortnight_start:cycle.start_date,days:newDays,updated_at:new Date().toISOString()};
     });
-    // Upsert all
     await sb.from("timesheets").upsert(newRows,{onConflict:"employee_name,fortnight_start"});
-    // If the cycle being copied INTO is the currently selected one, refresh local cache
     if(cycle.start_date===fortnightStart){
       const tsMap={};newRows.forEach(r=>tsMap[r.employee_name]=r.days);setTimesheets(t=>({...t,...tsMap}));
     }
     alert("✅ Copied pattern from "+fmtCycleName(prev.start_date)+" → "+fmtCycleName(cycle.start_date)+" for "+newRows.length+" employee(s).");
   };
-  // First-time anchor save
   const saveAnchor=async(anchor)=>{
     await sb.from("settings").upsert({key:"cycle_anchor",value:anchor});
     setCycleAnchor(anchor);
@@ -1295,7 +1412,6 @@ function App(){
   const doImport=async(data,fs)=>{
     for(const name of Object.keys(data)){await sb.from("employees").upsert({name,role:"educator"},{onConflict:"name",ignoreDuplicates:true});}
     if(fs){
-      // Ensure the cycle for this fs exists if we have an anchor and the date aligns
       if(cycleAnchor){
         const diff=daysBetween(cycleAnchor,fs);
         if(diff>=0&&diff%14===0){
@@ -1311,7 +1427,6 @@ function App(){
     await loadData();
   };
   const summ=emp=>{const s=getTS(emp);let td=0,sk=0,al=0,ph=0;s.forEach(d=>{if(d.status==="Sick Leave"){sk++;return;}if(d.status==="Annual Leave"){al++;return;}if(d.status==="Public Holiday"){ph++;return;}if(d.status==="Day Off"||d.status==="Weekend")return;if(d.start&&d.end){const m=calcH(d.start,d.end,d.breakMins);if(m!=null){td+=m/60;return;}}if(d.decimalHours){const v=parseFloat(d.decimalHours);if(!isNaN(v)&&v>0)td+=v;}});return{td,sk,al,ph};};
-  // canEdit now also respects cycle lock
   const canEdit=emp=>{
     if(isLocked)return false;
     return session?.role==="admin"||session?.role==="director"||(session?.role==="educator"&&session.empName===emp);
@@ -1324,6 +1439,9 @@ function App(){
   if(loading)return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:"2.5rem",fontWeight:900,lineHeight:1.1,marginBottom:12}}><span style={{color:"#e8192c"}}>K</span><span style={{color:"#f59e0b"}}>i</span><span style={{color:"#3b82f6"}}>d</span><span style={{color:"#22c55e"}}>s</span></div><p style={{color:"#64748b",fontSize:"0.875rem"}}>Loading iRSK...</p></div></div>);
 
   const btn=(label,onClick,active)=><button onClick={onClick} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:active?BRAND:"#f1f5f9",color:active?"white":"#475569"}}>{label}</button>;
+
+  // ── NEW: any of the 3 timesheet sub-views ──
+  const isTimesheetView=view==="timesheet"||view==="summary"||view==="byday";
 
   return(
     <div className="app-root">
@@ -1345,28 +1463,23 @@ function App(){
           {btn("🏠 Dashboard",()=>setView("dashboard"),view==="dashboard")}
           {btn("🛒 Shopping",()=>setView("shopping"),view==="shopping")}
           {(session.role==="admin"||session.role==="director")&&btn("🔧 Maintenance",()=>setView("maintenance"),view==="maintenance")}
-          {canManage&&btn("📋 Timesheet",()=>setView("timesheet"),view==="timesheet"||view==="summary")}
+          {canManage&&btn("📋 Timesheet",()=>setView("timesheet"),isTimesheetView)}
           {(session.role==="admin"||session.role==="director")&&btn("🔐 Passwords",()=>setShowPw(true),false)}
           {session.role!=="admin"&&btn("🔢 My PIN",()=>setShowChangePw(true),false)}
           <button onClick={()=>setSession(null)} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:"#f1f5f9",color:"#ef4444"}}>Logout</button>
         </div>
       </div>
 
-      {/* Dashboard — full width */}
       {view==="dashboard"&&<Dashboard session={session}/>}
-
-      {/* Shopping Lists — full width */}
       {view==="shopping"&&<ShoppingLists session={session}/>}
-
-      {/* Maintenance — full width */}
       {view==="maintenance"&&<Maintenance session={session}/>}
 
-      {/* Timesheet & Summary — with left panel */}
-      {view!=="dashboard"&&view!=="shopping"&&view!=="maintenance"&&(<>
-        {/* Timesheet sub-menu */}
+      {/* Timesheet / Entries by Day / Summary — with left panel */}
+      {isTimesheetView&&(<>
         {canManage&&<div style={{background:"white",borderRadius:"1rem",boxShadow:"0 2px 8px rgba(0,0,0,0.07)",padding:"0.6rem 0.9rem",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",borderLeft:"4px solid "+BRAND}}>
           <span style={{fontSize:"0.75rem",fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.05em",marginRight:4}}>Timesheet</span>
           <button onClick={()=>setView("timesheet")} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:view==="timesheet"?BRAND:"#f1f5f9",color:view==="timesheet"?"white":"#475569"}}>📋 Entries</button>
+          <button onClick={()=>setView("byday")} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:view==="byday"?BRAND:"#f1f5f9",color:view==="byday"?"white":"#475569"}}>📆 Entries by Day</button>
           <button onClick={()=>setView("summary")} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:view==="summary"?BRAND:"#f1f5f9",color:view==="summary"?"white":"#475569"}}>📊 Summary</button>
           <div style={{width:1,height:24,background:"#e2e8f0",margin:"0 4px"}}></div>
           <button onClick={()=>setShowImport(true)} style={{padding:"0.35rem 0.85rem",borderRadius:"0.5rem",fontSize:"0.8rem",fontWeight:500,border:"none",cursor:"pointer",background:"#f1f5f9",color:"#475569"}}>📥 Import</button>
@@ -1375,7 +1488,6 @@ function App(){
         <div className="app-2col">
           {/* Left Panel */}
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
-            {/* Payroll Cycles list — admin only */}
             {canManage&&<div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                 <div style={{fontWeight:600,color:"#334155"}}>📅 Payroll Cycles</div>
@@ -1426,7 +1538,6 @@ function App(){
               }
             </div>}
 
-            {/* Employees */}
             <div style={{background:"white",borderRadius:"1rem",padding:16,boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}>
               <div style={{fontWeight:600,color:"#334155",marginBottom:12}}>👥 Employees</div>
               {canManage&&<div style={{display:"flex",gap:8,marginBottom:12}}><input value={newEmp} onChange={e=>setNewEmp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addEmp()} placeholder="Employee name..." style={{flex:1,border:"1px solid #e2e8f0",borderRadius:"0.5rem",padding:"0.4rem 0.75rem",fontSize:"0.8rem",outline:"none"}}/><button onClick={addEmp} style={{background:BRAND,color:"white",border:"none",borderRadius:"0.5rem",padding:"0.4rem 0.75rem",fontWeight:700,cursor:"pointer",fontSize:"1rem"}}>+</button></div>}
@@ -1445,7 +1556,6 @@ function App(){
 
           {/* Right Panel */}
           <div>
-            {/* Lock banner */}
             {selectedCycle&&isLocked&&<div style={{background:"#fef3c7",border:"1px solid #fde68a",borderRadius:"0.75rem",padding:"0.75rem 1rem",marginBottom:12,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
               <span style={{fontSize:"1.25rem"}}>🔒</span>
               <div style={{flex:1,minWidth:0}}>
@@ -1454,6 +1564,16 @@ function App(){
               </div>
               {canManage&&<button onClick={()=>toggleLock(selectedCycle)} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"#16a34a",color:"white",fontWeight:600,fontSize:"0.8rem",border:"none",cursor:"pointer"}}>🔓 Unlock</button>}
             </div>}
+
+            {/* NEW: Entries by Day view */}
+            {view==="byday"&&<EntriesByDay
+              employees={visEmps}
+              fortnightStart={fortnightStart}
+              getTimesheet={getTS}
+              updateDay={updDay}
+              canEditFor={canEdit}
+              isLocked={isLocked}
+            />}
 
             {view==="timesheet"&&!selectedEmp&&<div style={{background:"white",borderRadius:"1rem",padding:"3rem",textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.07)"}}><div style={{fontSize:"2.5rem",marginBottom:8}}>👈</div><p>Select an employee</p></div>}
             {view==="timesheet"&&selectedEmp&&(
