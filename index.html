@@ -208,6 +208,7 @@ function requestNotificationPermission(){
 const parseTm=t=>{if(!t)return"";t=String(t).trim();const ap=t.match(/(\d+):(\d+)\s*(AM|PM)/i);if(ap){let h=parseInt(ap[1]);const p=ap[3].toUpperCase();if(p==="PM"&&h!==12)h+=12;if(p==="AM"&&h===12)h=0;return String(h).padStart(2,"0")+":"+ap[2];}const pl=t.match(/(\d+):(\d+)/);if(pl)return String(parseInt(pl[1])).padStart(2,"0")+":"+pl[2];return"";};
 const parseDt=d=>{if(!d)return null;const p=String(d).trim().split("/");if(p.length===3)return new Date(parseInt(p[2]),parseInt(p[1])-1,parseInt(p[0]));return null;};
 const descSt=desc=>{const d=String(desc||"").trim().toLowerCase();if(d.includes("sick"))return"Sick Leave";if(d.includes("annual")||d.includes("leave"))return"Annual Leave";if(d.includes("public")||d.includes("holiday")||d==="ph")return"Public Holiday";if(d===""||d==="off"||d==="day off")return"Day Off";return"Worked";};
+const parseDur=v=>{if(!v)return 0;v=String(v).trim();const hm=v.match(/^(\d+):(\d+)$/);if(hm)return parseInt(hm[1])+parseInt(hm[2])/60;const hr=v.match(/([\d.]+)\s*Hrs/i);if(hr)return parseFloat(hr[1])||0;const d=parseFloat(v);return isNaN(d)?0:d;};
 function parseFile(file){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
@@ -228,11 +229,11 @@ function parseFile(file){
           if(di>=0){
             if(!cur)continue;
             const dateObj=parseDt(row[di]);if(!dateObj)continue;
-            const st=parseTm(row[6]);const en=parseTm(row[9]);
+            let st=parseTm(row[6]);let en=parseTm(row[9]);const totalDec=parseDur(row[11]);const _m=t=>{const[h,mm]=t.split(":").map(Number);return h*60+mm;};const _hm=v=>{v=((v%1440)+1440)%1440;return String(Math.floor(v/60)).padStart(2,"0")+":"+String(v%60).padStart(2,"0");};
             const lunch=roundBrk(parseInt(row[7])||0);
             let status=descSt(row[4]||"");
             let dec=0;
-            if(st&&en){const[sh,sm]=st.split(":").map(Number);const[eh,em]=en.split(":").map(Number);const net=(eh*60+em)-(sh*60+sm)-lunch;if(net>0)dec=net/60;}
+            if(st&&en){let net=_m(en)-_m(st)-lunch;if(net<=0){const cand=[];for(const ds of[0,-720,720])for(const de of[0,720,-720]){const ns=((_m(st)+ds)%1440+1440)%1440,nev=((_m(en)+de)%1440+1440)%1440,n=nev-ns-lunch;if(n>0)cand.push({n,ns,ne:nev});}if(cand.length){cand.sort((a,b)=>totalDec>0?Math.abs(a.n/60-totalDec)-Math.abs(b.n/60-totalDec):a.n-b.n);st=_hm(cand[0].ns);en=_hm(cand[0].ne);net=cand[0].n;}}if(net>0)dec=net/60;}if(dec<=0&&totalDec>0){dec=totalDec;st="";en="";}
             if(status==="Worked"&&dec<=0)status="Day Off";
             result[cur][toKey(dateObj)]={status,start:status==="Worked"?st:"",end:status==="Worked"?en:"",breakMins:status==="Worked"?String(lunch):"",decimalHours:status==="Worked"?dec.toFixed(2):""};
           }else{
