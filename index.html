@@ -955,6 +955,395 @@ function Maintenance({session}){
   );
 }
 
+// ── National Worker Register ────────────────────────────────
+const WR_TRAIN=(prefix,section)=>[
+  {key:prefix+"Rto",label:"Registered Training Organisation",section},
+  {key:prefix+"RtoNumber",label:"RTO Number",section},
+  {key:prefix+"CourseCode",label:"Course Code",section},
+  {key:prefix+"DateAttained",label:"Date Attained",type:"date",section},
+  {key:prefix+"Expiry",label:"Expiry Date",type:"date",section},
+  {key:prefix+"DateSighted",label:"Date Sighted",type:"date",section},
+  {key:prefix+"SightedBy",label:"Sighted By",section},
+];
+const WORKER_FIELDS=[
+  {key:"refNo",label:"Ref#",section:"Personal and Contact Details"},
+  {key:"title",label:"Title",section:"Personal and Contact Details"},
+  {key:"firstName",label:"First Name",section:"Personal and Contact Details"},
+  {key:"middleName",label:"Middle Name",section:"Personal and Contact Details"},
+  {key:"lastName",label:"Last Name",section:"Personal and Contact Details"},
+  {key:"prevNames",label:"Names Previously Known As",section:"Personal and Contact Details"},
+  {key:"alias",label:"Alias / Other Names Known By",section:"Personal and Contact Details"},
+  {key:"dob",label:"Date of Birth",type:"date",section:"Personal and Contact Details"},
+  {key:"email",label:"Email",section:"Personal and Contact Details"},
+  {key:"phone",label:"Phone Number",section:"Personal and Contact Details"},
+  {key:"mobile",label:"Mobile Number",section:"Personal and Contact Details"},
+
+  {key:"fdcLocationType",label:"FDC Location Type",section:"Family Day Care Only – FDC Address"},
+  {key:"fdcVenueAddressId",label:"FDC Venue – Address ID",section:"Family Day Care Only – FDC Address"},
+  {key:"fdcAddr1",label:"FDC Residence Address – Line 1",section:"Family Day Care Only – FDC Address"},
+  {key:"fdcAddr2",label:"FDC Residence Address – Line 2",section:"Family Day Care Only – FDC Address"},
+  {key:"fdcSuburb",label:"FDC Residence Address – Suburb/Town",section:"Family Day Care Only – FDC Address"},
+  {key:"fdcState",label:"FDC Residence Address – State",section:"Family Day Care Only – FDC Address"},
+  {key:"fdcPostcode",label:"FDC Residence Address – Post Code",section:"Family Day Care Only – FDC Address"},
+
+  {key:"homeAddr1",label:"Home Address – Line 1",section:"Workers Home Address"},
+  {key:"homeAddr2",label:"Home Address – Line 2",section:"Workers Home Address"},
+  {key:"homeSuburb",label:"Home Address – Suburb/Town",section:"Workers Home Address"},
+  {key:"homeState",label:"Home – State",section:"Workers Home Address"},
+  {key:"homePostcode",label:"Home – Post Code",section:"Workers Home Address"},
+
+  {key:"postalAddr1",label:"Postal Address – Line 1",section:"Workers Postal Address"},
+  {key:"postalAddr2",label:"Postal Address – Line 2",section:"Workers Postal Address"},
+  {key:"postalSuburb",label:"Postal Address – Suburb/Town",section:"Workers Postal Address"},
+  {key:"postalState",label:"Postal Address – State",section:"Workers Postal Address"},
+  {key:"postalPostcode",label:"Postal Address – Post Code",section:"Workers Postal Address"},
+
+  {key:"position",label:"Position",section:"Position Details"},
+  {key:"nonEducatorRole",label:"Non-Educator Role",section:"Position Details"},
+  {key:"startDate",label:"Start Date",type:"date",section:"Position Details"},
+  {key:"natureOfEngagement",label:"Nature of Employment / Engagement / Appointment",section:"Position Details"},
+  {key:"probationary",label:"Currently on Probationary Period",type:"select",options:["","Yes","No"],section:"Position Details"},
+
+  {key:"wwccExemption",label:"Working With Children Check Exemption",type:"select",options:["","Yes","No"],section:"Working with Children Check (WWCC) Details"},
+  {key:"wwccExemptionReason",label:"Reason for Exemption",section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1Number",label:"WWCC1 – Check Number",section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1Expiry",label:"WWCC1 – Check Expiry Date",type:"date",section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1State",label:"WWCC1 – State or Territory of Issue",section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1SightedDate",label:"WWCC1 – Date Sighted",type:"date",section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1SightedBy",label:"WWCC1 – Sighted By",section:"Working with Children Check (WWCC) Details"},
+
+  {key:"wwcc2Number",label:"WWCC2 – Check Number",section:"Additional Working with Children Check Details"},
+  {key:"wwcc2Expiry",label:"WWCC2 – Check Expiry Date",type:"date",section:"Additional Working with Children Check Details"},
+  {key:"wwcc2State",label:"WWCC2 – State or Territory of Issue",section:"Additional Working with Children Check Details"},
+  {key:"wwcc2SightedDate",label:"WWCC2 – Date Sighted",type:"date",section:"Additional Working with Children Check Details"},
+  {key:"wwcc2SightedBy",label:"WWCC2 – Sighted By",section:"Additional Working with Children Check Details"},
+
+  {key:"teacherRegNumber",label:"Check Number",section:"Teacher Registration Details"},
+  {key:"teacherRegExpiry",label:"Check Expiry Date",type:"date",section:"Teacher Registration Details"},
+  {key:"teacherRegState",label:"State or Territory of Issue",section:"Teacher Registration Details"},
+  {key:"teacherRegSightedDate",label:"Date Sighted",type:"date",section:"Teacher Registration Details"},
+  {key:"teacherRegSightedBy",label:"Sighted By",section:"Teacher Registration Details"},
+
+  {key:"qualNone",label:"The Worker does not have any relevant Qualifications or Training",type:"select",options:["","Yes","No"],section:"Qualification Details"},
+  {key:"qualType",label:"Type",section:"Qualification Details"},
+  {key:"qualRto",label:"Registered Training Organisation",section:"Qualification Details"},
+  {key:"qualRtoNumber",label:"RTO Number",section:"Qualification Details"},
+  {key:"qualCourseCode",label:"Course Code",section:"Qualification Details"},
+  {key:"qualWorkingTowards",label:"Is the Worker working towards this qualification",type:"select",options:["","Yes","No"],section:"Qualification Details"},
+  {key:"qualDateAttained",label:"Date Attained",type:"date",section:"Qualification Details"},
+  {key:"qualDateCommenced",label:"Date Commenced",type:"date",section:"Qualification Details"},
+  {key:"qualDateSighted",label:"Date Sighted",type:"date",section:"Qualification Details"},
+  {key:"qualSightedBy",label:"Sighted By",section:"Qualification Details"},
+
+  ...WR_TRAIN("firstAid","First Aid Training Details"),
+  ...WR_TRAIN("anaphylaxis","Anaphylaxis Training Details"),
+  ...WR_TRAIN("asthma","Asthma Training Details"),
+  ...WR_TRAIN("childSafety","Child Safety Training Details"),
+  ...WR_TRAIN("childProtection","Child Protection Training Details"),
+
+  {key:"otherCprFlag",label:"Other Training CPR",section:"Other Training Details (CPR)"},
+  ...WR_TRAIN("otherCpr","Other Training Details (CPR)"),
+
+  {key:"otherFlag",label:"Other Training",section:"Other Training Details"},
+  ...WR_TRAIN("other","Other Training Details"),
+];
+const WORKER_SECTIONS=(()=>{const order=[];const map={};WORKER_FIELDS.forEach(f=>{if(!map[f.section]){map[f.section]=[];order.push(f.section);}map[f.section].push(f);});return order.map(title=>({title,fields:map[title]}));})();
+const WR_CATEGORIES=["Current Staff","Third Party / Inclusion Support","Student Placements","Approved Provider","Workers Who Have Left"];
+const wrName=d=>[d.firstName,d.lastName].filter(Boolean).join(" ").trim()||"(No name)";
+const wrToISO=v=>{
+  if(v==null||v==="")return"";
+  if(v instanceof Date)return toKey(v);
+  if(typeof v==="number"){const d=XLSX.SSF.parse_date_code(v);if(!d)return"";return d.y+"-"+String(d.m).padStart(2,"0")+"-"+String(d.d).padStart(2,"0");}
+  const s=String(v).trim();if(!s||s==="-")return"";
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m)return m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[0].slice(0,10);
+  return"";
+};
+const wrFromISO=s=>{if(!s)return"";const p=s.split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:"";};
+const wrDaysToExpiry=iso=>{if(!iso)return null;const d=new Date(iso+"T12:00:00");return Math.round((d-new Date(todaySyd()+"T12:00:00"))/86400000);};
+const wrExpiryBadge=iso=>{
+  const days=wrDaysToExpiry(iso);
+  if(days==null)return{label:"No WWCC on file",bg:"#f1f5f9",c:"#94a3b8"};
+  if(days<0)return{label:"Expired "+wrFromISO(iso),bg:"#fee2e2",c:"#dc2626"};
+  if(days<=30)return{label:"Expires "+wrFromISO(iso),bg:"#fee2e2",c:"#dc2626"};
+  if(days<=90)return{label:"Expires "+wrFromISO(iso),bg:"#fef3c7",c:"#b45309"};
+  return{label:"Valid to "+wrFromISO(iso),bg:"#dcfce7",c:"#15803d"};
+};
+const wrMapCategory=txt=>{
+  const t=(txt||"").toLowerCase();
+  if(t.includes("third party")||t.includes("inclusion"))return"Third Party / Inclusion Support";
+  if(t.includes("student"))return"Student Placements";
+  if(t.includes("approved provider"))return"Approved Provider";
+  if(t.includes("left"))return"Workers Who Have Left";
+  return"Current Staff";
+};
+
+function WorkerRegister({session}){
+  const[rows,setRows]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[posTab,setPosTab]=useState("All");
+  const[search,setSearch]=useState("");
+  const[editing,setEditing]=useState(null);
+  const[showImport,setShowImport]=useState(false);
+  const[delConfirm,setDelConfirm]=useState(null);
+  const canManage=session.role==="admin"||session.role==="director";
+
+  const load=async()=>{
+    setLoading(true);
+    const{data}=await sb.from("national_worker_register").select("*").order("created_at",{ascending:true});
+    setRows(data||[]);
+    setLoading(false);
+  };
+  useEffect(()=>{load();},[]);
+
+  const wrPos=d=>String(d.position||d.nonEducatorRole||"").trim()||"Unspecified";
+  const positions=Array.from(new Set(rows.map(r=>wrPos(r.data||{})))).sort((a,b)=>a.localeCompare(b));
+  const posTabs=["All",...positions];
+
+  const filtered=rows.filter(r=>{
+    const d=r.data||{};
+    if(posTab!=="All"&&wrPos(d)!==posTab)return false;
+    if(!search.trim())return true;
+    const s=search.trim().toLowerCase();
+    return wrName(d).toLowerCase().includes(s)||String(d.position||"").toLowerCase().includes(s)||String(d.wwcc1Number||"").toLowerCase().includes(s);
+  }).sort((a,b)=>wrName(a.data||{}).localeCompare(wrName(b.data||{})));
+
+  const posCounts=Object.fromEntries(posTabs.map(p=>[p,p==="All"?rows.length:rows.filter(r=>wrPos(r.data||{})===p).length]));
+
+  const del=async id=>{
+    await sb.from("national_worker_register").delete().eq("id",id);
+    setDelConfirm(null);
+    setRows(rs=>rs.filter(r=>r.id!==id));
+  };
+
+  const doExport=()=>{
+    const header=WORKER_FIELDS.map(f=>f.label);
+    const body=rows.map(r=>WORKER_FIELDS.map(f=>{
+      const v=(r.data||{})[f.key]||"";
+      return f.type==="date"?wrFromISO(v):v;
+    }));
+    const ws=XLSX.utils.aoa_to_sheet([header,...body]);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"National Worker Register");
+    XLSX.writeFile(wb,"National_Worker_Register_"+todaySyd()+".xlsx");
+  };
+
+  return(
+    <div style={{background:"white",borderRadius:"1rem",boxShadow:"0 2px 8px rgba(0,0,0,0.07)",borderTop:"3px solid #6366f1"}}>
+      {editing&&<WorkerDetailModal worker={editing} canDelete={canManage} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);load();}} onDeleted={()=>{setEditing(null);load();}}/>}
+      {showImport&&<WorkerImportModal onClose={()=>setShowImport(false)} onImported={()=>{setShowImport(false);load();}}/>}
+
+      <div style={{padding:"0.875rem 1rem",borderBottom:"1px solid #e2e8f0",fontWeight:700,fontSize:"1rem",color:"#1e293b",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+        <span>🪪 National Worker Register</span>
+        {canManage&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={()=>setEditing({isNew:true,category:"Current Staff",data:{}})} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"#6366f1",color:"white",fontWeight:600,fontSize:"0.8rem",border:"none",cursor:"pointer"}}>+ Add Worker</button>
+          <button onClick={()=>setShowImport(true)} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"#f1f5f9",color:"#475569",fontWeight:500,fontSize:"0.8rem",border:"none",cursor:"pointer"}}>📥 Import</button>
+          <button onClick={doExport} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"#f1f5f9",color:"#475569",fontWeight:500,fontSize:"0.8rem",border:"none",cursor:"pointer"}}>📤 Export</button>
+        </div>}
+      </div>
+
+      <div style={{padding:"0.75rem 1rem",borderBottom:"1px solid #e2e8f0",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        {posTabs.map(p=>(
+          <button key={p} onClick={()=>setPosTab(p)} style={{padding:"5px 12px",borderRadius:"0.5rem",fontSize:"0.78rem",fontWeight:600,border:"1px solid "+(posTab===p?"#6366f1":"#e2e8f0"),background:posTab===p?"#6366f1":"white",color:posTab===p?"white":"#475569",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+            {p}
+            <span style={{fontSize:"0.65rem",fontWeight:700,padding:"1px 7px",borderRadius:999,background:posTab===p?"rgba(255,255,255,0.25)":"#f1f5f9",color:posTab===p?"white":"#94a3b8"}}>{posCounts[p]||0}</span>
+          </button>
+        ))}
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name, position, WWCC..." style={{marginLeft:"auto",border:"1px solid #e2e8f0",borderRadius:"0.5rem",padding:"0.4rem 0.75rem",fontSize:"0.8rem",minWidth:200}}/>
+      </div>
+
+      <div style={{overflowX:"auto"}}>
+        {loading
+          ?<div style={{textAlign:"center",color:"#94a3b8",padding:"2.5rem 0"}}>Loading...</div>
+          :filtered.length===0
+            ?<div style={{textAlign:"center",color:"#94a3b8",padding:"2.5rem 0"}}>
+              <div style={{fontSize:"2.5rem",marginBottom:8}}>🪪</div>
+              <p style={{fontSize:"0.875rem",margin:0}}>No workers under this position{search?" matching your search":""}.</p>
+            </div>
+            :<table style={{width:"100%",borderCollapse:"collapse",fontSize:"0.82rem"}}>
+              <thead><tr style={{background:"#f8fafc"}}>
+                {["Ref#","Name","Position","WWCC Status",""].map(h=><th key={h} style={{textAlign:"left",padding:"8px 12px",fontSize:"0.7rem",color:"#64748b",borderBottom:"1px solid #e2e8f0",textTransform:"uppercase",letterSpacing:"0.03em"}}>{h}</th>)}
+              </tr></thead>
+              <tbody>
+                {filtered.map(r=>{
+                  const d=r.data||{};const badge=wrExpiryBadge(d.wwcc1Expiry);
+                  return(
+                    <tr key={r.id} style={{borderBottom:"1px solid #f1f5f9",cursor:"pointer"}} onClick={()=>setEditing(r)}>
+                      <td style={{padding:"8px 12px",color:"#94a3b8"}}>{d.refNo||"—"}</td>
+                      <td style={{padding:"8px 12px",fontWeight:600,color:"#1e293b"}}>{wrName(d)}</td>
+                      <td style={{padding:"8px 12px",color:"#475569"}}>{d.position||d.nonEducatorRole||"—"}</td>
+                      <td style={{padding:"8px 12px"}}><span style={{fontSize:"0.7rem",fontWeight:700,padding:"2px 9px",borderRadius:999,background:badge.bg,color:badge.c}}>{badge.label}</span></td>
+                      <td style={{padding:"8px 12px",textAlign:"right"}} onClick={e=>e.stopPropagation()}>
+                        {canManage&&(delConfirm===r.id
+                          ?<span style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+                            <button onClick={()=>del(r.id)} style={{padding:"3px 9px",borderRadius:6,background:"#ef4444",color:"white",fontWeight:600,fontSize:"0.7rem",border:"none",cursor:"pointer"}}>Delete?</button>
+                            <button onClick={()=>setDelConfirm(null)} style={{padding:"3px 9px",borderRadius:6,background:"#e2e8f0",color:"#475569",fontSize:"0.7rem",border:"none",cursor:"pointer"}}>Cancel</button>
+                          </span>
+                          :<button onClick={()=>setDelConfirm(r.id)} style={{padding:"3px 9px",borderRadius:6,background:"none",color:"#cbd5e1",fontSize:"0.7rem",border:"1px solid #e2e8f0",cursor:"pointer"}}>✕</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+        }
+      </div>
+    </div>
+  );
+}
+
+function WorkerDetailModal({worker,canDelete,onClose,onSaved,onDeleted}){
+  const[data,setData]=useState({...worker.data});
+  const[category,setCategory]=useState(worker.category||"Current Staff");
+  const[saving,setSaving]=useState(false);
+  const[delConfirm,setDelConfirm]=useState(false);
+  const set=(k,v)=>setData(d=>({...d,[k]:v}));
+
+  const save=async()=>{
+    setSaving(true);
+    if(worker.isNew){
+      const{error}=await sb.from("national_worker_register").insert({category,data});
+      if(error){alert("Error saving: "+error.message);setSaving(false);return;}
+    }else{
+      const{error}=await sb.from("national_worker_register").update({category,data,updated_at:new Date().toISOString()}).eq("id",worker.id);
+      if(error){alert("Error saving: "+error.message);setSaving(false);return;}
+    }
+    setSaving(false);
+    onSaved();
+  };
+  const del=async()=>{
+    await sb.from("national_worker_register").delete().eq("id",worker.id);
+    onDeleted();
+  };
+
+  const fieldInput=f=>{
+    const v=data[f.key]||"";
+    if(f.type==="date")return<input type="date" value={v} onChange={e=>set(f.key,e.target.value)} style={inpStyle}/>;
+    if(f.type==="select")return(
+      <select value={v} onChange={e=>set(f.key,e.target.value)} style={inpStyle}>
+        {f.options.map(o=><option key={o} value={o}>{o||"—"}</option>)}
+      </select>
+    );
+    return<input type="text" value={v} onChange={e=>set(f.key,e.target.value)} style={inpStyle}/>;
+  };
+  const inpStyle={width:"100%",border:"1px solid #e2e8f0",borderRadius:"0.4rem",padding:"0.35rem 0.6rem",fontSize:"0.8rem",boxSizing:"border-box"};
+
+  return(
+    <Modal title={worker.isNew?"🪪 Add Worker":"🪪 "+wrName(data)} onClose={onClose} maxWidth={900} footer={
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+        <div>
+          {!worker.isNew&&canDelete&&(delConfirm
+            ?<span style={{display:"flex",gap:6}}>
+              <button onClick={del} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"#ef4444",color:"white",fontWeight:600,fontSize:"0.8rem",border:"none",cursor:"pointer"}}>Confirm Delete</button>
+              <button onClick={()=>setDelConfirm(false)} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"#f1f5f9",color:"#475569",fontSize:"0.8rem",border:"none",cursor:"pointer"}}>Cancel</button>
+            </span>
+            :<button onClick={()=>setDelConfirm(true)} style={{padding:"0.4rem 0.9rem",borderRadius:"0.5rem",background:"none",color:"#ef4444",fontSize:"0.8rem",border:"1px solid #fecaca",cursor:"pointer"}}>🗑️ Delete Worker</button>
+          )}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onClose} style={{padding:"0.4rem 1.1rem",borderRadius:"0.5rem",background:"#f1f5f9",color:"#475569",fontSize:"0.85rem",border:"none",cursor:"pointer"}}>Cancel</button>
+          <button onClick={save} disabled={saving} style={{padding:"0.4rem 1.1rem",borderRadius:"0.5rem",background:"#6366f1",color:"white",fontWeight:600,fontSize:"0.85rem",border:"none",cursor:"pointer",opacity:saving?0.6:1}}>{saving?"Saving...":"💾 Save"}</button>
+        </div>
+      </div>
+    }>
+      <div style={{marginBottom:16}}>
+        <label style={{fontSize:"0.7rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:4}}>Category</label>
+        <select value={category} onChange={e=>setCategory(e.target.value)} style={{...inpStyle,maxWidth:320}}>
+          {WR_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      {WORKER_SECTIONS.map(sec=>(
+        <div key={sec.title} style={{marginBottom:18}}>
+          <div style={{fontSize:"0.75rem",fontWeight:700,color:"#6366f1",textTransform:"uppercase",letterSpacing:"0.03em",borderBottom:"1px solid #e2e8f0",paddingBottom:6,marginBottom:10}}>{sec.title}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+            {sec.fields.map(f=>(
+              <div key={f.key}>
+                <label style={{fontSize:"0.68rem",color:"#94a3b8",display:"block",marginBottom:3}}>{f.label}</label>
+                {fieldInput(f)}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </Modal>
+  );
+}
+
+function WorkerImportModal({onClose,onImported}){
+  const[fileName,setFileName]=useState("");
+  const[parsed,setParsed]=useState(null);
+  const[error,setError]=useState("");
+  const[importing,setImporting]=useState(false);
+  const ref=useRef();
+
+  const onFile=e=>{
+    const f=e.target.files[0];if(!f)return;
+    setFileName(f.name);setError("");setParsed(null);
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const wb=XLSX.read(ev.target.result,{type:"array",cellDates:false});
+        let sheetName=wb.SheetNames.find(n=>/worker register/i.test(n))||wb.SheetNames[0];
+        const ws=wb.Sheets[sheetName];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:true});
+        let headerIdx=rows.findIndex(r=>String(r[0]||"").trim().toLowerCase()==="ref#");
+        if(headerIdx<0)throw new Error("Couldn't find the header row (expected a 'Ref#' column). Make sure this is a National Worker Register export.");
+        const records=[];let category="Current Staff";
+        for(let i=headerIdx+1;i<rows.length;i++){
+          const row=rows[i];
+          const nonEmpty=row.filter(c=>String(c||"").trim()!=="");
+          if(!nonEmpty.length)continue;
+          if(nonEmpty.length===1&&isNaN(parseFloat(row[0]))){category=wrMapCategory(String(row[0]));continue;}
+          const rec={};let hasName=false;
+          WORKER_FIELDS.forEach((f,ci)=>{
+            let v=row[ci];
+            if(v==null)v="";
+            if(f.type==="date")v=wrToISO(v);else v=String(v).trim();if(v==="-")v="";
+            rec[f.key]=v;
+            if((f.key==="firstName"||f.key==="lastName")&&v)hasName=true;
+          });
+          if(hasName)records.push({category,data:rec});
+        }
+        if(!records.length)throw new Error("No worker rows found below the header.");
+        setParsed(records);
+      }catch(err){setError(err.message);}
+    };
+    reader.readAsArrayBuffer(f);
+  };
+
+  const confirmImport=async()=>{
+    if(!parsed)return;
+    setImporting(true);
+    const{error:err}=await sb.from("national_worker_register").insert(parsed);
+    setImporting(false);
+    if(err){setError("Import failed: "+err.message);return;}
+    onImported();
+  };
+
+  const byCat={};(parsed||[]).forEach(r=>{byCat[r.category]=(byCat[r.category]||0)+1;});
+
+  return(
+    <Modal title="📥 Import National Worker Register" onClose={onClose} maxWidth={480} footer={
+      parsed&&<div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button onClick={onClose} style={{padding:"0.4rem 1.1rem",borderRadius:"0.5rem",background:"#f1f5f9",color:"#475569",fontSize:"0.85rem",border:"none",cursor:"pointer"}}>Cancel</button>
+        <button onClick={confirmImport} disabled={importing} style={{padding:"0.4rem 1.1rem",borderRadius:"0.5rem",background:"#6366f1",color:"white",fontWeight:600,fontSize:"0.85rem",border:"none",cursor:"pointer",opacity:importing?0.6:1}}>{importing?"Importing...":"Import "+parsed.length+" Workers"}</button>
+      </div>
+    }>
+      <p style={{fontSize:"0.8rem",color:"#64748b",marginTop:0}}>Upload an xlsx file in the official National Worker Register format (with the "Ref#" header row). Rows are added as new records — this doesn't overwrite or de-duplicate existing entries.</p>
+      <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:"0.8rem",color:"#475569",background:"#f8fafc",border:"1px dashed #cbd5e1",borderRadius:"0.5rem",padding:"0.6rem 0.9rem",marginBottom:12}}>
+        📄 {fileName||"Choose xlsx file..."}
+        <input type="file" accept=".xlsx,.xls" ref={ref} onChange={onFile} style={{display:"none"}}/>
+      </label>
+      {error&&<div style={{background:"#fee2e2",color:"#dc2626",borderRadius:"0.5rem",padding:"0.6rem 0.8rem",fontSize:"0.8rem",marginBottom:10}}>{error}</div>}
+      {parsed&&<div style={{background:"#f0fdf4",border:"1px solid #bbf7d0",borderRadius:"0.5rem",padding:"0.75rem 0.9rem",fontSize:"0.8rem",color:"#15803d"}}>
+        <div style={{fontWeight:700,marginBottom:4}}>✓ Found {parsed.length} worker{parsed.length===1?"":"s"}</div>
+        {Object.entries(byCat).map(([c,n])=><div key={c}>{c}: {n}</div>)}
+      </div>}
+    </Modal>
+  );
+}
+
 // ── Dashboard ─────────────────────────────────────────────────
 function Dashboard({session}){
   return(
@@ -1488,6 +1877,7 @@ function App(){
           {btn("🏠 Dashboard",()=>setView("dashboard"),view==="dashboard")}
           {btn("🛒 Shopping",()=>setView("shopping"),view==="shopping")}
           {(session.role==="admin"||session.role==="director")&&btn("🔧 Maintenance",()=>setView("maintenance"),view==="maintenance")}
+          {(session.role==="admin"||session.role==="director")&&btn("🪪 Worker Register",()=>setView("workerregister"),view==="workerregister")}
           {canManage&&btn("📋 Timesheet",()=>setView("timesheet"),isTimesheetView)}
           {(session.role==="admin"||session.role==="director")&&btn("🔐 Passwords",()=>setShowPw(true),false)}
           {session.role!=="admin"&&btn("🔢 My PIN",()=>setShowChangePw(true),false)}
@@ -1498,6 +1888,7 @@ function App(){
       {view==="dashboard"&&<Dashboard session={session}/>}
       {view==="shopping"&&<ShoppingLists session={session}/>}
       {view==="maintenance"&&<Maintenance session={session}/>}
+      {view==="workerregister"&&<WorkerRegister session={session}/>}
 
       {/* Timesheet / Entries by Day / Summary — with left panel */}
       {isTimesheetView&&(<>
