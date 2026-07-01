@@ -966,15 +966,15 @@ const WR_TRAIN=(prefix,section)=>[
   {key:prefix+"SightedBy",label:"Sighted By",section},
 ];
 const WORKER_FIELDS=[
-  {key:"refNo",label:"Ref#",section:"Personal and Contact Details"},
-  {key:"title",label:"Title",section:"Personal and Contact Details"},
-  {key:"firstName",label:"First Name",section:"Personal and Contact Details"},
+  {key:"refNo",label:"Ref#",required:true,section:"Personal and Contact Details"},
+  {key:"title",label:"Title",required:true,section:"Personal and Contact Details"},
+  {key:"firstName",label:"First Name",required:true,section:"Personal and Contact Details"},
   {key:"middleName",label:"Middle Name",section:"Personal and Contact Details"},
-  {key:"lastName",label:"Last Name",section:"Personal and Contact Details"},
+  {key:"lastName",label:"Last Name",required:true,section:"Personal and Contact Details"},
   {key:"prevNames",label:"Names Previously Known As",section:"Personal and Contact Details"},
   {key:"alias",label:"Alias / Other Names Known By",section:"Personal and Contact Details"},
-  {key:"dob",label:"Date of Birth",type:"date",section:"Personal and Contact Details"},
-  {key:"email",label:"Email",section:"Personal and Contact Details"},
+  {key:"dob",label:"Date of Birth",type:"date",required:true,section:"Personal and Contact Details"},
+  {key:"email",label:"Email",required:true,section:"Personal and Contact Details"},
   {key:"phone",label:"Phone Number",section:"Personal and Contact Details"},
   {key:"mobile",label:"Mobile Number",section:"Personal and Contact Details"},
 
@@ -986,31 +986,31 @@ const WORKER_FIELDS=[
   {key:"fdcState",label:"FDC Residence Address – State",section:"Family Day Care Only – FDC Address"},
   {key:"fdcPostcode",label:"FDC Residence Address – Post Code",section:"Family Day Care Only – FDC Address"},
 
-  {key:"homeAddr1",label:"Home Address – Line 1",section:"Workers Home Address"},
+  {key:"homeAddr1",label:"Home Address – Line 1",required:true,section:"Workers Home Address"},
   {key:"homeAddr2",label:"Home Address – Line 2",section:"Workers Home Address"},
-  {key:"homeSuburb",label:"Home Address – Suburb/Town",section:"Workers Home Address"},
-  {key:"homeState",label:"Home – State",section:"Workers Home Address"},
-  {key:"homePostcode",label:"Home – Post Code",section:"Workers Home Address"},
+  {key:"homeSuburb",label:"Home Address – Suburb/Town",required:true,section:"Workers Home Address"},
+  {key:"homeState",label:"Home – State",required:true,section:"Workers Home Address"},
+  {key:"homePostcode",label:"Home – Post Code",required:true,section:"Workers Home Address"},
 
-  {key:"postalAddr1",label:"Postal Address – Line 1",section:"Workers Postal Address"},
+  {key:"postalAddr1",label:"Postal Address – Line 1",required:true,section:"Workers Postal Address"},
   {key:"postalAddr2",label:"Postal Address – Line 2",section:"Workers Postal Address"},
-  {key:"postalSuburb",label:"Postal Address – Suburb/Town",section:"Workers Postal Address"},
-  {key:"postalState",label:"Postal Address – State",section:"Workers Postal Address"},
-  {key:"postalPostcode",label:"Postal Address – Post Code",section:"Workers Postal Address"},
+  {key:"postalSuburb",label:"Postal Address – Suburb/Town",required:true,section:"Workers Postal Address"},
+  {key:"postalState",label:"Postal Address – State",required:true,section:"Workers Postal Address"},
+  {key:"postalPostcode",label:"Postal Address – Post Code",required:true,section:"Workers Postal Address"},
 
-  {key:"position",label:"Position",section:"Position Details"},
+  {key:"position",label:"Position",required:true,section:"Position Details"},
   {key:"nonEducatorRole",label:"Non-Educator Role",section:"Position Details"},
-  {key:"startDate",label:"Start Date",type:"date",section:"Position Details"},
-  {key:"natureOfEngagement",label:"Nature of Employment / Engagement / Appointment",section:"Position Details"},
-  {key:"probationary",label:"Currently on Probationary Period",type:"select",options:["","Yes","No"],section:"Position Details"},
+  {key:"startDate",label:"Start Date",type:"date",required:true,section:"Position Details"},
+  {key:"natureOfEngagement",label:"Nature of Employment / Engagement / Appointment",required:true,section:"Position Details"},
+  {key:"probationary",label:"Currently on Probationary Period",type:"select",options:["","Yes","No"],required:true,section:"Position Details"},
 
-  {key:"wwccExemption",label:"Working With Children Check Exemption",type:"select",options:["","Yes","No"],section:"Working with Children Check (WWCC) Details"},
+  {key:"wwccExemption",label:"Working With Children Check Exemption",type:"select",options:["","Yes","No"],required:true,section:"Working with Children Check (WWCC) Details"},
   {key:"wwccExemptionReason",label:"Reason for Exemption",section:"Working with Children Check (WWCC) Details"},
-  {key:"wwcc1Number",label:"WWCC1 – Check Number",section:"Working with Children Check (WWCC) Details"},
-  {key:"wwcc1Expiry",label:"WWCC1 – Check Expiry Date",type:"date",section:"Working with Children Check (WWCC) Details"},
-  {key:"wwcc1State",label:"WWCC1 – State or Territory of Issue",section:"Working with Children Check (WWCC) Details"},
-  {key:"wwcc1SightedDate",label:"WWCC1 – Date Sighted",type:"date",section:"Working with Children Check (WWCC) Details"},
-  {key:"wwcc1SightedBy",label:"WWCC1 – Sighted By",section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1Number",label:"WWCC1 – Check Number",required:true,section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1Expiry",label:"WWCC1 – Check Expiry Date",type:"date",required:true,section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1State",label:"WWCC1 – State or Territory of Issue",required:true,section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1SightedDate",label:"WWCC1 – Date Sighted",type:"date",required:true,section:"Working with Children Check (WWCC) Details"},
+  {key:"wwcc1SightedBy",label:"WWCC1 – Sighted By",required:true,section:"Working with Children Check (WWCC) Details"},
 
   {key:"wwcc2Number",label:"WWCC2 – Check Number",section:"Additional Working with Children Check Details"},
   {key:"wwcc2Expiry",label:"WWCC2 – Check Expiry Date",type:"date",section:"Additional Working with Children Check Details"},
@@ -1024,16 +1024,16 @@ const WORKER_FIELDS=[
   {key:"teacherRegSightedDate",label:"Date Sighted",type:"date",section:"Teacher Registration Details"},
   {key:"teacherRegSightedBy",label:"Sighted By",section:"Teacher Registration Details"},
 
-  {key:"qualNone",label:"The Worker does not have any relevant Qualifications or Training",type:"select",options:["","Yes","No"],section:"Qualification Details"},
-  {key:"qualType",label:"Type",section:"Qualification Details"},
-  {key:"qualRto",label:"Registered Training Organisation",section:"Qualification Details"},
+  {key:"qualNone",label:"The Worker does not have any relevant Qualifications or Training",type:"select",options:["","Yes","No"],required:true,section:"Qualification Details"},
+  {key:"qualType",label:"Type",required:true,section:"Qualification Details"},
+  {key:"qualRto",label:"Registered Training Organisation",required:true,section:"Qualification Details"},
   {key:"qualRtoNumber",label:"RTO Number",section:"Qualification Details"},
   {key:"qualCourseCode",label:"Course Code",section:"Qualification Details"},
-  {key:"qualWorkingTowards",label:"Is the Worker working towards this qualification",type:"select",options:["","Yes","No"],section:"Qualification Details"},
-  {key:"qualDateAttained",label:"Date Attained",type:"date",section:"Qualification Details"},
+  {key:"qualWorkingTowards",label:"Is the Worker working towards this qualification",type:"select",options:["","Yes","No"],required:true,section:"Qualification Details"},
+  {key:"qualDateAttained",label:"Date Attained",type:"date",required:true,section:"Qualification Details"},
   {key:"qualDateCommenced",label:"Date Commenced",type:"date",section:"Qualification Details"},
-  {key:"qualDateSighted",label:"Date Sighted",type:"date",section:"Qualification Details"},
-  {key:"qualSightedBy",label:"Sighted By",section:"Qualification Details"},
+  {key:"qualDateSighted",label:"Date Sighted",type:"date",required:true,section:"Qualification Details"},
+  {key:"qualSightedBy",label:"Sighted By",required:true,section:"Qualification Details"},
 
   ...WR_TRAIN("firstAid","First Aid Training Details"),
   ...WR_TRAIN("anaphylaxis","Anaphylaxis Training Details"),
@@ -1198,9 +1198,17 @@ function WorkerDetailModal({worker,canDelete,onClose,onSaved,onDeleted}){
   const[category,setCategory]=useState(worker.category||"Current Staff");
   const[saving,setSaving]=useState(false);
   const[delConfirm,setDelConfirm]=useState(false);
+  const[missing,setMissing]=useState([]);
   const set=(k,v)=>setData(d=>({...d,[k]:v}));
 
   const save=async()=>{
+    const missingFields=WORKER_FIELDS.filter(f=>f.required&&!String(data[f.key]||"").trim());
+    if(missingFields.length){
+      setMissing(missingFields.map(f=>f.key));
+      alert("Please fill in all mandatory fields (marked in red):\n\n"+missingFields.map(f=>"• "+f.label).join("\n"));
+      return;
+    }
+    setMissing([]);
     setSaving(true);
     if(worker.isNew){
       const{error}=await sb.from("national_worker_register").insert({category,data});
@@ -1219,13 +1227,15 @@ function WorkerDetailModal({worker,canDelete,onClose,onSaved,onDeleted}){
 
   const fieldInput=f=>{
     const v=data[f.key]||"";
-    if(f.type==="date")return<input type="date" value={v} onChange={e=>set(f.key,e.target.value)} style={inpStyle}/>;
+    const isMissing=missing.includes(f.key)&&!v;
+    const style={...inpStyle,...(isMissing?{border:"1px solid #ef4444",background:"#fef2f2"}:{})};
+    if(f.type==="date")return<input type="date" value={v} onChange={e=>set(f.key,e.target.value)} style={style}/>;
     if(f.type==="select")return(
-      <select value={v} onChange={e=>set(f.key,e.target.value)} style={inpStyle}>
+      <select value={v} onChange={e=>set(f.key,e.target.value)} style={style}>
         {f.options.map(o=><option key={o} value={o}>{o||"—"}</option>)}
       </select>
     );
-    return<input type="text" value={v} onChange={e=>set(f.key,e.target.value)} style={inpStyle}/>;
+    return<input type="text" value={v} onChange={e=>set(f.key,e.target.value)} style={style}/>;
   };
   const inpStyle={width:"100%",border:"1px solid #e2e8f0",borderRadius:"0.4rem",padding:"0.35rem 0.6rem",fontSize:"0.8rem",boxSizing:"border-box"};
 
@@ -1247,6 +1257,10 @@ function WorkerDetailModal({worker,canDelete,onClose,onSaved,onDeleted}){
         </div>
       </div>
     }>
+      <div style={{fontSize:"0.72rem",color:"#94a3b8",marginBottom:14}}>Fields marked <span style={{color:"#ef4444",fontWeight:700}}>*</span> are mandatory on the official National Worker Register.</div>
+      {missing.length>0&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:"0.5rem",padding:"0.6rem 0.8rem",fontSize:"0.78rem",color:"#dc2626",marginBottom:14}}>
+        <strong>{missing.length} mandatory field{missing.length===1?"":"s"} missing</strong> — highlighted below.
+      </div>}
       <div style={{marginBottom:16}}>
         <label style={{fontSize:"0.7rem",fontWeight:700,color:"#64748b",textTransform:"uppercase",display:"block",marginBottom:4}}>Category</label>
         <select value={category} onChange={e=>setCategory(e.target.value)} style={{...inpStyle,maxWidth:320}}>
@@ -1259,7 +1273,7 @@ function WorkerDetailModal({worker,canDelete,onClose,onSaved,onDeleted}){
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
             {sec.fields.map(f=>(
               <div key={f.key}>
-                <label style={{fontSize:"0.68rem",color:"#94a3b8",display:"block",marginBottom:3}}>{f.label}</label>
+                <label style={{fontSize:"0.68rem",color:"#94a3b8",display:"block",marginBottom:3}}>{f.label}{f.required&&<span style={{color:"#ef4444",fontWeight:700}}> *</span>}</label>
                 {fieldInput(f)}
               </div>
             ))}
